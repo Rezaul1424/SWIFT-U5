@@ -1,0 +1,21 @@
+feature,Window 1 (2004),Window 2 (2004–07),Window 3 (2004–11),Window 4 (2004–14),Window 5 (2004–18),mean_stability,std_stability,classification
+anc_visits,1.0,1.0,1.0,1.0,1.0,1.0,0.0,Stable Core
+preceding_birth_interval,1.0,0.975,1.0,0.85,0.95,0.955,0.056,Stable Core
+is_twin,0.875,0.775,0.775,0.725,0.85,0.8,0.055,Stable Core
+maternal_education,0.875,0.8,0.8,0.65,0.825,0.79,0.075,Stable Core
+maternal_age_at_birth,0.975,0.6,0.625,0.4,0.65,0.65,0.185,Drifting / Contextual
+birth_order,0.725,0.675,0.625,0.375,0.6,0.6,0.12,Excluded / Low Priority
+facility_delivery,0.725,0.5,0.625,0.325,0.525,0.54,0.134,Excluded / Low Priority
+caesarean_delivery,0.65,0.475,0.575,0.425,0.55,0.535,0.078,Excluded / Low Priority
+tetanus_toxoid,0.975,0.875,0.825,0.0,0.0,0.535,0.439,Drifting / Contextual
+div_sylhet,0.675,0.45,0.55,0.35,0.525,0.51,0.108,Excluded / Low Priority
+residence_urban,0.725,0.475,0.525,0.325,0.475,0.505,0.129,Excluded / Low Priority
+div_chattogram,0.625,0.425,0.55,0.35,0.525,0.495,0.097,Excluded / Low Priority
+wealth_quintile,0.675,0.4,0.525,0.35,0.525,0.495,0.113,Excluded / Low Priority
+div_khulna,0.6,0.45,0.525,0.325,0.475,0.475,0.091,Excluded / Low Priority
+div_dhaka,0.725,0.4,0.4,0.325,0.475,0.465,0.138,Excluded / Low Priority
+div_barishal,0.575,0.4,0.5,0.325,0.5,0.46,0.087,Excluded / Low Priority
+is_first_birth,0.55,0.4,0.5,0.325,0.475,0.45,0.079,Excluded / Low Priority
+div_rajshahi,0.4,0.4,0.55,0.325,0.5,0.435,0.08,Excluded / Low Priority
+iron_supplementation,0.925,0.75,0.0,0.0,0.0,0.335,0.414,Drifting / Contextual
+div_rangpur,0.0,0.0,0.5,0.35,0.475,0.265,0.222,Excluded / Low Priority

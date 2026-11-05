@@ -1,0 +1,32 @@
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lllllllllll}
+\toprule
+Test Round & Model & AUROC (W) & AUROC 95% CI & AUPRC (W) & Brier Score (W) & Cal Slope (W) & Cal Intercept (W) & NNS @ 5% & NNS @ 10% & NNS @ 20% \\
+\midrule
+2007 & SWIFT-U5 (Full Framework) & 0.739 & [0.719, 0.756] & 0.206 & 0.0545 & 0.475 & 0.513 & 3.3 & 4.2 & 6.2 \\
+2007 & Weighted XGBoost (Baseline) & 0.756 & [0.737, 0.776] & 0.232 & 0.1603 & 1.078 & -2.555 & 3.1 & 4.0 & 5.8 \\
+2007 & Weighted Logistic (Baseline) & 0.743 & [0.723, 0.763] & 0.191 & 0.1893 & 1.030 & -2.756 & 4.1 & 4.7 & 6.2 \\
+2007 & Weighted Random Forest (Baseline) & 0.758 & [0.741, 0.776] & 0.195 & 0.1343 & 1.094 & -2.312 & 3.9 & 4.3 & 5.9 \\
+2011 & SWIFT-U5 (Full Framework) & 0.716 & [0.684, 0.744] & 0.147 & 0.0441 & 0.461 & 0.372 & 5.2 & 5.9 & 7.4 \\
+2011 & Weighted XGBoost (Baseline) & 0.711 & [0.686, 0.739] & 0.145 & 0.2563 & 1.218 & -3.323 & 5.0 & 5.9 & 8.2 \\
+2011 & Weighted Logistic (Baseline) & 0.722 & [0.695, 0.749] & 0.132 & 0.3159 & 1.155 & -3.630 & 4.9 & 6.8 & 8.5 \\
+2011 & Weighted Random Forest (Baseline) & 0.722 & [0.687, 0.754] & 0.146 & 0.1869 & 1.343 & -2.905 & 5.2 & 6.0 & 7.7 \\
+2014 & SWIFT-U5 (Full Framework) & 0.599 & [0.564, 0.641] & 0.063 & 0.0410 & 0.182 & -1.757 & 8.6 & 10.7 & 14.9 \\
+2014 & Weighted XGBoost (Baseline) & 0.643 & [0.604, 0.672] & 0.088 & 0.2746 & 0.539 & -3.247 & 9.6 & 12.9 & 14.9 \\
+2014 & Weighted Logistic (Baseline) & 0.614 & [0.579, 0.649] & 0.080 & 0.3303 & 0.416 & -3.328 & 9.1 & 12.7 & 17.4 \\
+2014 & Weighted Random Forest (Baseline) & 0.642 & [0.606, 0.674] & 0.079 & 0.2593 & 0.625 & -3.218 & 9.1 & 12.6 & 14.5 \\
+2017-18 & SWIFT-U5 (Full Framework) & 0.620 & [0.588, 0.649] & 0.100 & 0.0403 & 0.364 & -0.021 & 5.7 & 8.4 & 12.5 \\
+2017-18 & Weighted XGBoost (Baseline) & 0.689 & [0.653, 0.712] & 0.136 & 0.1556 & 1.116 & -2.779 & 4.6 & 7.1 & 11.1 \\
+2017-18 & Weighted Logistic (Baseline) & 0.682 & [0.650, 0.715] & 0.124 & 0.1856 & 1.016 & -2.989 & 5.0 & 7.4 & 9.9 \\
+2017-18 & Weighted Random Forest (Baseline) & 0.693 & [0.657, 0.718] & 0.134 & 0.1312 & 1.240 & -2.517 & 5.2 & 8.0 & 11.2 \\
+2022 & SWIFT-U5 (Full Framework) & 0.637 & [0.600, 0.676] & 0.075 & 0.0297 & 0.425 & 0.032 & 8.3 & 12.3 & 16.3 \\
+2022 & Weighted XGBoost (Baseline) & 0.646 & [0.608, 0.685] & 0.086 & 0.1822 & 1.047 & -3.231 & 8.5 & 12.5 & 16.9 \\
+2022 & Weighted Logistic (Baseline) & 0.623 & [0.590, 0.657] & 0.070 & 0.2193 & 0.909 & -3.432 & 7.6 & 11.3 & 17.2 \\
+2022 & Weighted Random Forest (Baseline) & 0.645 & [0.615, 0.687] & 0.079 & 0.1559 & 1.108 & -3.026 & 9.0 & 13.4 & 18.4 \\
+\bottomrule
+\end{tabular}
+\caption{SWIFT-U5 versus Baselines across Forward Temporal Cuts}
+\label{tab:table4_benchmark}
+\end{table}

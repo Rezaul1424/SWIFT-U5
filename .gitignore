@@ -1,0 +1,9 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# DHS source files and record-level datasets are not redistributed.
+/data/

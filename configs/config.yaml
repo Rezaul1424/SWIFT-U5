@@ -1,0 +1,82 @@
+# SWIFT-U5 Study Configuration
+project_name: "SWIFT-U5"
+study_title: "Survey-Weighted and Temporally Validated Risk Modeling for Under-Five Mortality Using Bangladesh DHS Data"
+
+# Survey Rounds and Data
+rounds:
+  - round: "2004"
+    zip_name: "BD_2004_DHS_10282026_910_245759.ZIP"
+    dta_folder: "BDBR4JDT"
+    dta_file: "BDBR4JFL.dta"
+    num_divisions: 7
+  - round: "2007"
+    zip_name: "BD_2007_DHS_10282026_911_245759.ZIP"
+    dta_folder: "BDBR51DT"
+    dta_file: "BDBR51FL.DTA"
+    num_divisions: 7
+  - round: "2011"
+    zip_name: "BD_2011_DHS_10282026_911_245759.ZIP"
+    dta_folder: "BDBR61DT"
+    dta_file: "BDBR61FL.DTA"
+    num_divisions: 7
+  - round: "2014"
+    zip_name: "BD_2014_DHS_10282026_912_245759.ZIP"
+    dta_folder: "BDBR72DT"
+    dta_file: "BDBR72FL.DTA"
+    num_divisions: 7
+  - round: "2017-18"
+    zip_name: "BD_2017-18_DHS_10282026_912_245759.ZIP"
+    dta_folder: "BDBR7RDT"
+    dta_file: "BDBR7RFL.DTA"
+    num_divisions: 8
+  - round: "2022"
+    zip_name: "BD_2022_DHS_10282026_912_245759.ZIP"
+    dta_folder: "BDBR81DT"
+    dta_file: "BDBR81FL.DTA"
+    num_divisions: 8
+
+# Survey Design Variables
+survey_design:
+  weight: "v005"   # Sample weight (divide by 1,000,000)
+  psu: "v021"      # Primary Sampling Unit (Cluster)
+  strata: "v022"   # Sample strata
+
+# Predictor Tiers (Leakage-Controlled)
+predictors:
+  t0_structural:
+    - maternal_age_at_birth
+    - maternal_education
+    - wealth_quintile
+    - residence_type       # Urban / Rural
+    - division             # Harmonized 7-division / 8-division
+    - birth_order
+    - preceding_birth_interval
+    - parity_before
+  t1_antenatal:
+    - anc_visits           # Antenatal care visits
+    - tetanus_toxoid       # TT injections
+    - iron_supplementation # Iron tablets/syrup during pregnancy
+  t2_birth:
+    - delivery_place       # Facility delivery vs home
+    - delivery_caesarean   # Caesarean delivery
+    - birth_size           # Subjective birth size (small / average / large)
+
+# Explicit Exclusions (Post-Outcome Leakage)
+excluded_post_outcome:
+  - breastfeeding
+  - child_age
+  - children_ever_born
+  - current_vaccination
+
+# Validation Arms (2x2 Factorial Design)
+factorial_design:
+  arm_a: { validation: "random_split", weighted: false }
+  arm_b: { validation: "random_split", weighted: true }
+  arm_c: { validation: "forward_temporal", weighted: false }
+  arm_d: { validation: "forward_temporal", weighted: true }
+
+# Evaluation Metrics & Capacities
+evaluation:
+  screening_capacities: [0.05, 0.10, 0.20]
+  bootstrap_replicates: 1000
+
