@@ -7,7 +7,7 @@ $^1$*Department of Computer Science and Engineering, United International Univer
 ---
 
 ## Abstract
-Under-five mortality remains a critical global health challenge in low- and middle-income countries, including Bangladesh, where child survival disparities reflect complex socioeconomic, maternal, and environmental vulnerabilities. Although Demographic and Health Survey (DHS) microdata offer large nationally representative samples, published machine learning applications frequently suffer from retrospective data leakage (such as illness recall and postnatal feeding duration acting as survival proxies), ignore complex multi-stage survey design, and report uncalibrated metrics under arbitrary default classification thresholds. This study addresses these vulnerabilities by developing and temporally validating a survey-weighted machine learning framework—termed **SWIFT-U5** (**S**urvey-**W**eighted, **I**mportance-corrected, **F**orward-validated **T**emporal Risk Model for Under-Five Mortality)—for prospective population risk stratification and community health worker household triage in Bangladesh. We analyzed an exposure-complete national cohort of 51,489 live births and 2,338 documented under-five deaths across six sequential BDHS survey rounds (2004 to 2022). We restricted predictors to maternal reproductive history, durable household WASH infrastructure, and socioeconomic indicators observable during community health outreach visits. We benchmarked logistic regression, random forest, XGBoost, and LightGBM under a strict forward-temporal design across five sequential cuts incorporating DHS sampling weights, primary sampling unit clustering, and drift-aware Platt recalibration (Module C). On the locked BDHS 2022 test cohort ($N = 13,119$, 408 deaths), SWIFT-U5 achieved a survey-weighted ROC-AUC of 0.637 (95% cluster-bootstrap CI: 0.600–0.676) and a PR-AUC of 0.075. Drift-aware recalibration reduced raw uncalibrated Brier score error by 83.7% from 0.1822 (raw XGBoost) to 0.0297 (comparable to the null constant-prevalence baseline of 0.0290 at 2.99% test prevalence, yielding a Brier Skill Score of -0.024) and shifted the calibration intercept from -3.230 to +0.032, while a calibration slope of 0.425 reflects dampening of raw overconfident tree logits. At a realistic 10% community health worker outreach capacity, the model captures 25.8% of national child deaths (Sensitivity = 25.8%, Specificity = 91.2%, PPV = 8.3%, NNS = 12.3), achieving an efficiency multiplier of $2.72\times$ over random household visits, rising to 105.3 deaths captured per 1,000 children screened (NNS = 9.5) in high-burden northern divisions such as Rangpur. At the Youden-optimal threshold ($\tau = 0.0004$), the model achieved 64.2% sensitivity, 56.8% specificity, and 60.5% balanced accuracy. Subgroup audits indicated comparable ranking sensitivity across rural (25.4%) and urban (25.5%) settings, with enhanced triage yield in socioeconomically disadvantaged strata. These findings establish that prospective survey-weighted learning provides a realistic benchmark for population-level risk stratification and community outreach prioritization in Bangladesh, while highlighting the inherent limits of individual-level classification in rare-event demographic surveys.
+Under-five mortality remains a critical global health challenge in low- and middle-income countries, including Bangladesh, where child survival disparities reflect complex socioeconomic, maternal, and environmental vulnerabilities. Although Demographic and Health Survey (DHS) microdata offer large nationally representative samples, published machine learning applications frequently suffer from retrospective data leakage (such as illness recall and postnatal feeding duration acting as survival proxies), ignore complex multi-stage survey design, and report uncalibrated metrics under arbitrary default classification thresholds. This study addresses these vulnerabilities by developing and temporally validating a survey-weighted machine learning framework—termed **SWIFT-U5** (**S**urvey-**W**eighted, **I**mportance-corrected, **F**orward-validated **T**emporal Risk Model for Under-Five Mortality)—for retrospective population-level risk stratification and outreach targeting simulation in Bangladesh. We analyzed an exposure-complete national cohort of 51,489 live births and 2,338 documented under-five deaths across six sequential BDHS survey rounds (2004 to 2022). We restricted predictors to maternal reproductive history and durable household demographic indicators, excluding survival-contingent postnatal proxies. We benchmarked logistic regression, random forest, XGBoost, and LightGBM under a strict forward-temporal design across five sequential cuts incorporating DHS sampling weights, primary sampling unit clustering, and drift-aware Platt recalibration (Module C). On the locked BDHS 2022 test cohort ($N = 13,119$, 408 deaths), SWIFT-U5 achieved a survey-weighted ROC-AUC of 0.637 (95% cluster-bootstrap CI: 0.600–0.676) and a PR-AUC of 0.089. Drift-aware recalibration reduced raw uncalibrated Brier score error by 83.7% from 0.1805 (raw base model) to 0.0297, adjusting the calibration intercept from -3.230 to +0.032, while a calibration slope of 0.425 reflects dampening of raw overconfident tree logits. Plainly evaluated, the calibrated Brier score ($0.0297$) does not outperform the uninformative constant-prevalence null benchmark of $0.0290$ (BSS = -0.024). Under a simulated 10% population outreach capacity, the model captures 25.8% of child deaths (Sensitivity = 25.8%, Specificity = 91.2%, PPV = 8.3%, NNS = 12.1), achieving an efficiency multiplier of $2.72\times$ over random household selection, rising to 105.3 deaths captured per 1,000 screened (NNS = 9.5) in high-burden northern divisions such as Rangpur. At the Youden-optimal threshold ($\tau = 0.0004$), the model achieved 64.2% sensitivity, 56.8% specificity, and 60.5% balanced accuracy. Subgroup audits indicated comparable ranking sensitivity across rural (25.4%) and urban (25.5%) settings. These findings establish that prospective survey-weighted learning provides a realistic benchmark for population-level risk stratification in Bangladesh, while underscoring the inherent limits of individual-level classification in rare-event cross-sectional demographic surveys.
 
 **Keywords:** Under-five mortality, Demographic and Health Surveys, Risk stratification, Survey-weighted learning, Temporal validation
 
@@ -23,7 +23,7 @@ A growing body of studies has applied supervised machine learning to predict chi
 4. **Absence of Prospective Temporal Validation:** Random cross-validation concealing longitudinal domain shifts.
 5. **Misleading Calibration and Default Decision Thresholds:** Evaluating rare-event classifiers under arbitrary 0.5 thresholds without calibration diagnostics or outreach capacity metrics.
 
-We define SWIFT-U5 as an **interview-time community health surveillance and household triage model** rather than an exclusive pre-birth obstetric diagnostic. While obstetric models are restricted strictly to pre-conception or antenatal variables, community health outreach in low-resource settings occurs during home visits where health workers observe durable household infrastructure, maternal education, and birth history simultaneously to prioritize follow-up visits. Observational risk predictions provide associative stratification for resource allocation, not causal explanation.
+We explicitly define this study as a **retrospective survey-weighted child mortality risk modeling and demographic vulnerability stratification investigation**. In cross-sectional DHS data, maternal birth histories and household assets are ascertained retrospectively at survey interview. Consequently, simulated outreach screening metrics represent hypothetical population prioritization models based on survey-recorded vulnerabilities, rather than real-time clinical triage for a child observed at a healthcare visit. Predictive associations are observational and do not imply direct causal mechanisms.
 
 ---
 
@@ -32,14 +32,13 @@ We define SWIFT-U5 as an **interview-time community health surveillance and hous
 ### 2.1 Cohort Data, Outcome Ascertainment, and Right-Censoring
 We analyzed individual Birth Recode (BR) microdata across six BDHS rounds (2004–2022): BDHS 2004 ($N = 6,908$), 2007 ($N = 6,150$), 2011 ($N = 8,742$), 2014 ($N = 7,886$), 2017–18 ($N = 8,684$), and 2022 ($N = 13,119$), yielding 51,489 live births and 2,338 under-five deaths.
 
-**Estimand and Target Definition:** Prospective risk stratification for under-five mortality among children born within the DHS 5-year recall window, where survival status is ascertained at maternal interview:
+**Estimand and Target Definition:** Retrospective risk modeling of under-five mortality among survey-reported live births born within the DHS five-year recall window, where survival status is ascertained at maternal interview:
 $$\text{target} = (\texttt{b5} = 0) \land (\texttt{b7} < 60)$$
 where `b5` indicates survival status and `b7` is age at death in completed months.
 
-**Handling of Incomplete Follow-up (Right-Censoring):** Living children younger than 60 months at interview have not completed the full five-year exposure window. Following standard DHS machine learning literature, living children are classified as non-events at interview time ($Y = 0$). This is justified because:
-- **Epidemiological Front-Loading:** In Bangladesh, 71% of under-five deaths occur in the neonatal window ($t < 1$ month), and over 85% occur within the first year ($t < 12$ months) [7]. For a child surviving to interview past age one, residual risk before age five is $<0.4\%$.
-- **Operational Alignment:** A Community Health Worker visits households and assesses living children. Classifying living children as negative cases reflects the operational triage mandate at the visit date.
-Survival models with time-to-event hazard functions represent an important methodological alternative described in our limitations.
+**Handling of Incomplete Follow-up (Right-Censoring):** Living children younger than 60 months at interview have not completed the full five-year exposure window. Following standard DHS machine learning literature, living children are classified as non-events at interview time ($Y = 0$).
+- **Epidemiological Front-Loading:** In Bangladesh, 71% of under-five deaths occur in the neonatal window ($t < 1$ month), and over 85% occur within the first year ($t < 12$ months) [7]. For a child who has survived past their first birthday to interview, residual mortality risk before age five is $<0.4\%$.
+- **Censoring Limitation:** In the strict epidemiologic sense of a 5-year birth cohort, living children under 60 months are right-censored. Survival models with time-to-event hazard functions represent an important methodological alternative described in our limitations.
 
 **Geographic Administrative Harmonization:** Bangladesh transitioned from 6 divisions (2004–2007) to 7 (2011 with Rangpur) and 8 divisions (2022 with Mymensingh). For 18-year longitudinal comparability, Mymensingh is grouped within Dhaka for rounds prior to 2022, while the 2022 evaluation presents both 7- and 8-division views.
 
@@ -101,20 +100,21 @@ In contrast, institutional delivery (`facility_delivery`) exhibited marked tempo
 ### 3.3 Standard Binary Classification Performance
 On the locked BDHS 2022 test cohort ($N = 13,119$, 408 deaths, weighted prevalence 2.99%):
 - **Youden-Optimal Regime ($\tau = 0.0004$):** Sensitivity = 64.2%, Specificity = 56.8%, Precision = 4.4%, Accuracy = 57.0%, Balanced Accuracy = 60.5%, F1 = 0.082. Confusion matrix: $\text{TP} = 253.3$, $\text{FP} = 5,520.6$, $\text{TN} = 7,255.1$, $\text{FN} = 141.0$.
-- **Fixed 10% Outreach Capacity ($\tau = 0.0031$):** Sensitivity = 25.8%, Specificity = 91.2%, Precision = 8.3%, Accuracy = 89.2%, Balanced Accuracy = 58.5%, F1 = 0.125, NNS = 12.1 ($\approx 12.3$). Confusion matrix: $\text{TP} = 101.6$, $\text{FP} = 1,126.3$, $\text{TN} = 11,649.4$, $\text{FN} = 292.6$.
+- **Top-10% Rank Cutoff ($\tau = 0.0031$):** Sensitivity = 25.8%, Specificity = 91.2%, Precision = 8.3%, Accuracy = 89.2%, Balanced Accuracy = 58.5%, F1 = 0.125, NNS = 12.1. Confusion matrix: $\text{TP} = 101.6$, $\text{FP} = 1,126.3$, $\text{TN} = 11,649.4$, $\text{FN} = 292.6$.
+- **Exact 10% Weighted Capacity:** Sensitivity = 26.1%, Specificity = 90.5%, Precision = 7.8%, Accuracy = 89.1%, Balanced Accuracy = 58.3%, F1 = 0.120, NNS = 12.8. Confusion matrix: $\text{TP} = 103.0$, $\text{FP} = 1,217.3$, $\text{TN} = 11,558.4$, $\text{FN} = 291.2$. Yield = 78.0 deaths captured per 1,000 screened ($2.61\times$ enrichment).
 
 ### 3.4 Probability Calibration and Decision Utility
-- **Brier Score:** Raw XGBoost achieved an uncalibrated Brier score of 0.1822. Drift-aware Platt recalibration (Module C) reduced the Brier score by 83.7% to **0.0297** on the locked BDHS 2022 cohort.
-- **Null Baseline Comparison:** At 2.99% test prevalence, an uninformative prevalence-only predictor achieves $\text{Brier}_{\text{null}} = 0.0290$. SWIFT-U5's Brier score of 0.0297 corresponds to a Brier Skill Score of $\text{BSS} = -0.024$. The 83.7% error reduction reflects elimination of severe probability distortion induced by class-balancing weights rather than a substantial reduction below a constant prevalence forecast.
-- **Calibration Intercept:** $\alpha = +0.032$ (vs. $-3.230$ for baseline XGBoost), indicating minimal overall calibration-in-the-large bias.
+- **Brier Score:** Raw base tree boosting achieved an uncalibrated Brier score of 0.1805. Drift-aware Platt recalibration (Module C) reduced the Brier score by 83.7% to **0.0297** on the locked BDHS 2022 cohort.
+- **Null Baseline Comparison:** At 2.99% test prevalence, an uninformative prevalence-only predictor achieves $\text{Brier}_{\text{null}} = 0.0290$. SWIFT-U5's Brier score of 0.0297 corresponds to a Brier Skill Score of $\text{BSS} = -0.024$. The 83.7% error reduction reflects elimination of severe logit distortion induced by class-balancing weights rather than a reduction below a constant prevalence forecast.
+- **Calibration Intercept:** $\alpha = +0.032$ (vs. $-3.230$ for the uncalibrated base model), indicating minimal overall calibration-in-the-large bias.
 - **Calibration Slope:** $\beta = 0.425$. A slope $< 1$ indicates that raw base model predictions were over-dispersed (overly extreme), which recalibration successfully dampened toward the center.
-- **Ablation:** Removing Module C caused Brier score to collapse to 0.1805 and intercept to -3.230. Omitting Module A increased Brier error to 0.0297 with intercept +0.698.
+- **Ablation:** Removing Module C caused the calibration intercept to drop to -1.405. Omitting Module B caused the intercept to drop to -1.824. The uncalibrated base model without any modules had Brier 0.1805 and intercept -3.230.
 
 ### 3.5 Division Policy Layer and Operational Screening Capacity
-At a realistic 10% community health worker outreach capacity nationwide:
+Under a simulated 10% community health worker outreach capacity nationwide:
 - SWIFT-U5 captures **25.8% of all national child deaths** (95% CI: 20.5%–31.0%).
 - Number Needed to Screen = **12.3** (95% CI: 10.0–15.8).
-- Screening yield = **81.3 deaths per 1,000 screened** ($2.72\times$ efficiency multiplier over random home visits).
+- Screening yield = **81.3 deaths per 1,000 screened** ($2.72\times$ efficiency multiplier over random home selection).
 - In high-burden northern divisions, yield reached **105.3 deaths per 1,000 screened** in Rangpur (NNS = 9.5) and **95.9 deaths per 1,000 screened** in Sylhet (NNS = 10.4).
 These metrics reflect retrospective ranking utility on the locked survey cohort, not proof of clinical intervention efficacy.
 
@@ -129,7 +129,7 @@ Global SHAP attributions ranked antenatal care attendance, birth spacing, birth 
 ### 3.8 Synthesis and Comparative Trade-offs
 1. **Discrimination:** Pre-birth determinants achieve forward temporal ROC-AUC of 0.637 [0.600, 0.676]. While uncalibrated XGBoost achieved 0.646, SWIFT-U5's contribution lies in calibration restoration and policy screening utility.
 2. **Calibration:** Recalibration restored the intercept to +0.032; the slope of 0.425 reflects dampening of overconfident raw logits.
-3. **Screening Utility:** $2.72\times$ efficiency gain over random household outreach.
+3. **Screening Utility:** $2.61\times$--$2.72\times$ efficiency gain over random household outreach.
 4. **Subgroup Equity:** Stable performance across rural/urban divides with pro-poor outreach yield.
 
 ---
@@ -144,7 +144,7 @@ Global SHAP attributions ranked antenatal care attendance, birth spacing, birth 
 ---
 
 ## 5. Conclusion
-SWIFT-U5 establishes a survey-weighted machine learning framework for under-five mortality risk stratification and community outreach triage in Bangladesh. By eliminating retrospective proxies and grounding predictions on durable maternal, reproductive, household WASH infrastructure, and socioeconomic determinants, the framework provides an honest benchmark for prospective child mortality modeling and community health worker triage.
+SWIFT-U5 establishes a survey-weighted machine learning framework for under-five mortality risk stratification and community outreach simulation in Bangladesh. By eliminating retrospective proxies and grounding predictions on durable maternal, reproductive, household WASH infrastructure, and socioeconomic determinants, the framework provides an honest benchmark for child mortality modeling and outreach targeting.
 
 ---
 
@@ -161,7 +161,7 @@ SWIFT-U5 establishes a survey-weighted machine learning framework for under-five
 [10] M. A. Khan, et al., PLOS ONE 16(2) (2021) e0246210.  
 [11] T. Mazumder, et al., BMC Pediatrics 24(1) (2024) 572.  
 [12] T. Mazumder, et al., Scientific Reports 14(1) (2024) 19823.  
-[13] A. M. R. Chowdhury, et al., The Lancet 382(9906) (2013) 1734–1745.  
+[13] A. M. R Chowdhury, et al., The Lancet 382(9906) (2013) 1734–1745.  
 [14] S. E. Arifeen, et al., The Lancet 382(9909) (2013) 2012–2026.  
 [15] S. Naznin, et al., PLOS ONE 20(6) (2025) e0324825.  
 [16] M. M. M. Fahim, et al., arXiv:2602.03957 (2026).  
