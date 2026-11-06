@@ -34,7 +34,7 @@ def _resample_cluster_indices(df: pd.DataFrame,
 
 def bootstrap_metrics(df_test: pd.DataFrame,
                       y_prob: np.ndarray,
-                      n_replicates: int = 200,
+                      n_replicates: int = 1000,
                       psu_col: str = 'psu',
                       strata_col: str = 'strata',
                       target_col: str = 'target_u5m',
@@ -42,8 +42,9 @@ def bootstrap_metrics(df_test: pd.DataFrame,
                       screening_capacities: Optional[List[float]] = None,
                       seed: int = 42) -> Dict:
     """
-    Fast PSU-stratified cluster bootstrap to compute 95% CIs for metrics.
-    Precomputes cluster-to-index mappings for near-instant execution.
+    PSU-stratified cluster bootstrap to compute 95% CIs for metrics.
+    Default 1,000 replicates per approved Statistical Analysis Plan.
+    Precomputes cluster-to-index mappings for efficient execution.
     """
     if screening_capacities is None:
         screening_capacities = [0.05, 0.10, 0.20]

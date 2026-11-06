@@ -198,7 +198,7 @@ The BDHS uses a two-stage stratified cluster sampling design based on enumeratio
     \end{equation}
     This normalization ensures that each survey wave contributes in proportion to its empirical sample size $N_t$ during pooled multi-wave training, preventing arbitrary survey weight scaling across decades.
     \item \textbf{Cluster-Aware Partitions (\texttt{v021}):} Primary sampling unit (PSU) identifiers were compounded with wave indicators to guarantee unique cluster identities across surveys. Validation fold splits were constructed using \texttt{GroupKFold} grouped by compound PSU identifier, ensuring that all births from the same community cluster (and the same mother) were assigned entirely to either training or validation, preventing intra-cluster information leakage \cite{wieczorek2022}.
-    \item \textbf{Stratified Cluster Bootstrapping:} All 95\% confidence intervals were computed using 100 cluster-bootstrap resamples, where PSUs were resampled with replacement within survey strata (\texttt{v022}), preserving the empirical correlation structure of the multi-stage sample \cite{lumley2004}.
+    \item \textbf{Stratified Cluster Bootstrapping:} All 95\% confidence intervals were computed using 1{,}000 cluster-bootstrap resamples, where PSUs were resampled with replacement within survey strata (\texttt{v022}), preserving the empirical correlation structure of the multi-stage sample \cite{lumley2004}.
 \end{enumerate}
 
 \subsection{Forward Temporal Validation Lifecycle}
