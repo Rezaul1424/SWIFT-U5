@@ -2,12 +2,13 @@
 Metrics engine for SWIFT-U5 study evaluation.
 
 Computes weighted and unweighted:
-  - AUROC, AUPRC (Average Precision)
-  - Brier Score
-  - Calibration slope and intercept (logistic recalibration)
-  - Expected Calibration Error (ECE)
-  - Screening metrics at top 5%, 10%, 20% capacity: Sensitivity, PPV, NNS
-  - Decision Curve Analysis net benefit
+  - Classification: accuracy, precision, recall/sensitivity, specificity, F1,
+    balanced accuracy, NPV, MCC, confusion matrix
+  - Discrimination: AUROC, AUPRC (Average Precision, trapezoidal)
+  - Probability / calibration: Brier score, Null Brier, Brier Skill Score,
+    calibration slope, calibration intercept, ECE
+  - Screening utility: sensitivity, PPV, NNS at 5%, 10%, 20% capacity
+  - Decision analysis: net benefit (DCA), treat-all, treat-none references
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -28,7 +29,7 @@ def _weighted_roc_auc(y_true: np.ndarray, y_score: np.ndarray,
 
 def _weighted_average_precision(y_true: np.ndarray, y_score: np.ndarray,
                                   sample_weight: Optional[np.ndarray] = None) -> float:
-    """Compute weighted AUPRC (Average Precision)."""
+    """Compute weighted AUPRC (Average Precision, trapezoidal-equivalent via sklearn)."""
     try:
         return float(average_precision_score(y_true, y_score, sample_weight=sample_weight))
     except Exception:
@@ -42,6 +43,77 @@ def _weighted_brier_score(y_true: np.ndarray, y_prob: np.ndarray,
         sample_weight = np.ones(len(y_true))
     sample_weight = sample_weight / sample_weight.mean()
     return float(np.average((y_true - y_prob) ** 2, weights=sample_weight))
+
+
+def _null_brier_score(y_true: np.ndarray,
+                      sample_weight: Optional[np.ndarray] = None) -> float:
+    """Null (reference) Brier score: predicting the weighted prevalence for all.
+    BSS = 1 - Brier / NullBrier; a BSS > 0 means the model beats the null.
+    """
+    if sample_weight is None:
+        sample_weight = np.ones(len(y_true))
+    w = sample_weight / sample_weight.mean()
+    p_null = float(np.average(y_true, weights=w))
+    null_probs = np.full(len(y_true), p_null)
+    return float(np.average((y_true - null_probs) ** 2, weights=w))
+
+
+def _youden_threshold(y_true: np.ndarray, y_prob: np.ndarray,
+                       sample_weight: Optional[np.ndarray] = None) -> float:
+    """Return probability threshold that maximises the Youden index (sensitivity + specificity - 1)."""
+    from sklearn.metrics import roc_curve
+    fpr, tpr, thresholds = roc_curve(y_true, y_prob, sample_weight=sample_weight)
+    j = tpr - fpr
+    best = np.argmax(j)
+    return float(thresholds[best])
+
+
+def _classification_metrics_at_threshold(y_true: np.ndarray, y_prob: np.ndarray,
+                                          threshold: float,
+                                          sample_weight: Optional[np.ndarray] = None) -> Dict:
+    """
+    Compute weighted classification metrics at a given probability threshold.
+
+    Returns: accuracy, precision, recall (sensitivity), specificity, f1,
+             balanced_accuracy, npv, mcc, tp, tn, fp, fn (all weighted).
+    """
+    if sample_weight is None:
+        sample_weight = np.ones(len(y_true))
+    w = sample_weight / sample_weight.mean()
+
+    y_pred = (y_prob >= threshold).astype(int)
+
+    tp = float((w * y_pred * y_true).sum())
+    tn = float((w * (1 - y_pred) * (1 - y_true)).sum())
+    fp = float((w * y_pred * (1 - y_true)).sum())
+    fn = float((w * (1 - y_pred) * y_true).sum())
+
+    n_w = w.sum()
+    accuracy          = (tp + tn) / n_w if n_w > 0 else float('nan')
+    precision         = tp / (tp + fp) if (tp + fp) > 0 else float('nan')
+    recall            = tp / (tp + fn) if (tp + fn) > 0 else float('nan')   # sensitivity
+    specificity       = tn / (tn + fp) if (tn + fp) > 0 else float('nan')
+    npv               = tn / (tn + fn) if (tn + fn) > 0 else float('nan')
+    f1                = (2 * precision * recall / (precision + recall)
+                         if (precision + recall) > 0 else float('nan'))
+    balanced_accuracy = (recall + specificity) / 2.0 if (not np.isnan(recall) and not np.isnan(specificity)) else float('nan')
+
+    # Matthews Correlation Coefficient (generalised to weighted version)
+    denom = np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+    mcc = float((tp * tn - fp * fn) / denom) if denom > 0 else float('nan')
+
+    return {
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'specificity': specificity,
+        'npv': npv,
+        'f1': f1,
+        'balanced_accuracy': balanced_accuracy,
+        'mcc': mcc,
+        'tp_w': tp, 'tn_w': tn, 'fp_w': fp, 'fn_w': fn,
+        'threshold_used': threshold,
+    }
 
 
 def _calibration_slope_intercept(y_true: np.ndarray, y_prob: np.ndarray,
@@ -137,18 +209,41 @@ def compute_all_metrics(y_true: np.ndarray,
                       compute_unweighted: bool = True,
                       compute_calibration: bool = True) -> Dict:
     """
-    Compute evaluation metrics (weighted and optionally unweighted).
-    Set compute_calibration=False during bootstrap loops for 100x speedup.
+    Compute the complete SWIFT-U5 evaluation metric suite (weighted and optionally unweighted).
+
+    Includes:
+    - Discrimination: AUROC, AUPRC
+    - Calibration: Brier score, Null Brier, BSS, slope, intercept, ECE
+      (calibration sub-metrics skipped when compute_calibration=False for bootstrap speed)
+    - Classification at Youden threshold: accuracy, precision, recall/sensitivity,
+      specificity, F1, balanced accuracy, NPV, MCC, weighted confusion matrix cells
+    - Screening utility: sensitivity, PPV, NNS at each capacity fraction
+    - Sample / prevalence statistics
+
+    Set compute_calibration=False during bootstrap loops for a ~100x speedup.
     """
     if screening_capacities is None:
         screening_capacities = [0.05, 0.10, 0.20]
 
+    y_true = np.asarray(y_true, dtype=int)
+    y_prob = np.asarray(y_prob, dtype=float)
+
     metrics = {}
 
-    # --- Weighted metrics ---
+    # ------------------------------------------------------------------ #
+    # Weighted metrics                                                     #
+    # ------------------------------------------------------------------ #
     metrics['auroc_w'] = _weighted_roc_auc(y_true, y_prob, sample_weight)
     metrics['auprc_w'] = _weighted_average_precision(y_true, y_prob, sample_weight)
     metrics['brier_w'] = _weighted_brier_score(y_true, y_prob, sample_weight)
+
+    # Null Brier and Brier Skill Score
+    null_brier_w = _null_brier_score(y_true, sample_weight)
+    metrics['brier_null_w'] = null_brier_w
+    metrics['brier_skill_score_w'] = (
+        float(1.0 - metrics['brier_w'] / null_brier_w)
+        if null_brier_w and null_brier_w > 0 else float('nan')
+    )
 
     if compute_calibration:
         cal_slope, cal_int = _calibration_slope_intercept(y_true, y_prob, sample_weight)
@@ -156,28 +251,69 @@ def compute_all_metrics(y_true: np.ndarray,
         metrics['cal_intercept_w'] = cal_int
         metrics['ece_w'] = _expected_calibration_error(y_true, y_prob, sample_weight)
 
+    # Classification metrics at Youden threshold (weighted)
+    try:
+        thr_w = _youden_threshold(y_true, y_prob, sample_weight)
+        clf_w = _classification_metrics_at_threshold(y_true, y_prob, thr_w, sample_weight)
+        for k, v in clf_w.items():
+            metrics[f'{k}_w'] = v
+    except Exception:
+        pass
+
     for cap in screening_capacities:
         screen_m = _screening_metrics_at_capacity(y_true, y_prob, cap, sample_weight)
         metrics.update({f'{k}_w': v for k, v in screen_m.items()})
 
-    # --- Unweighted metrics ---
+    # ------------------------------------------------------------------ #
+    # Unweighted metrics                                                   #
+    # ------------------------------------------------------------------ #
     if compute_unweighted:
         metrics['auroc_uw'] = _weighted_roc_auc(y_true, y_prob, None)
         metrics['auprc_uw'] = _weighted_average_precision(y_true, y_prob, None)
         metrics['brier_uw'] = _weighted_brier_score(y_true, y_prob, None)
+
+        null_brier_uw = _null_brier_score(y_true, None)
+        metrics['brier_null_uw'] = null_brier_uw
+        metrics['brier_skill_score_uw'] = (
+            float(1.0 - metrics['brier_uw'] / null_brier_uw)
+            if null_brier_uw and null_brier_uw > 0 else float('nan')
+        )
+
         if compute_calibration:
             cal_slope_uw, cal_int_uw = _calibration_slope_intercept(y_true, y_prob, None)
             metrics['cal_slope_uw'] = cal_slope_uw
             metrics['cal_intercept_uw'] = cal_int_uw
             metrics['ece_uw'] = _expected_calibration_error(y_true, y_prob, None)
 
+        # Classification metrics at Youden threshold (unweighted)
+        try:
+            thr_uw = _youden_threshold(y_true, y_prob, None)
+            clf_uw = _classification_metrics_at_threshold(y_true, y_prob, thr_uw, None)
+            for k, v in clf_uw.items():
+                metrics[f'{k}_uw'] = v
+        except Exception:
+            pass
+
         for cap in screening_capacities:
             screen_m_uw = _screening_metrics_at_capacity(y_true, y_prob, cap, None)
             metrics.update({f'{k}_uw': v for k, v in screen_m_uw.items()})
 
+    # ------------------------------------------------------------------ #
+    # Sample statistics                                                    #
+    # ------------------------------------------------------------------ #
     metrics['n_test'] = int(len(y_true))
     metrics['n_deaths_test'] = int(y_true.sum())
-    metrics['prevalence'] = float(y_true.mean())
+    metrics['prevalence_uw'] = float(y_true.mean())
+    if sample_weight is not None:
+        w = np.asarray(sample_weight, dtype=float)
+        metrics['prevalence_w'] = float(np.average(y_true, weights=w))
+        # Effective sample size (Kish approximation)
+        metrics['eff_n'] = float(w.sum() ** 2 / (w ** 2).sum())
+    else:
+        metrics['prevalence_w'] = metrics['prevalence_uw']
+        metrics['eff_n'] = float(len(y_true))
+    # Legacy key kept for backward compat
+    metrics['prevalence'] = metrics['prevalence_uw']
 
     return metrics
 

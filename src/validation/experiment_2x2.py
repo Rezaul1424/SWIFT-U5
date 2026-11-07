@@ -34,7 +34,7 @@ from src.evaluation.bootstrap import bootstrap_metrics
 
 # Screening capacities for all reporting
 SCREENING_CAPACITIES = [0.05, 0.10, 0.20]
-N_BOOTSTRAP = 100
+N_BOOTSTRAP = 1000  # per approved Statistical Analysis Plan (was 100)
 
 
 def run_single_trial(df: pd.DataFrame,

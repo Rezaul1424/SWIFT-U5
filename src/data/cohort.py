@@ -1,7 +1,27 @@
 """
 Cohort construction module for SWIFT-U5.
-Filters raw BDHS Birth Recode (BR) datasets to 5-year exposure-complete cohorts,
-extracts survey design variables, and ensures zero post-outcome data leakage.
+
+Filters raw BDHS Birth Recode (BR) datasets to the standard cohort of children
+aged 0–59 completed months at the time of interview, extracts survey design
+variables, and ensures zero post-outcome data leakage.
+
+ESTIMAND NOTE
+-------------
+The outcome (target_u5m) is an *observed* under-five death recorded by the
+interview date.  A living child aged < 60 months at interview has NOT completed
+five years of potential follow-up — their eventual age-5 survival is unknown.
+The flag ``completed_5yr_followup`` distinguishes children whose full five-year
+window could have been observed (died before 60 months, OR alive and already
+≥ 60 months — which cannot occur in this cohort by construction) from those
+still within the follow-up window.  Sensitivity analyses should be conducted
+on the sub-cohort of children with ``completed_5yr_followup == True``.
+
+PSU IDENTITY NOTE
+-----------------
+DHS re-uses PSU identifier integers across survey waves.  PSU "361" in 2004 is
+a different physical cluster from PSU "361" in 2022.  The columns ``psu_wave``
+and ``strata_wave`` carry wave-prefixed composite identifiers that are unique
+across the pooled multi-wave dataset and must be used for bootstrap resampling.
 """
 
 from pathlib import Path
@@ -91,8 +111,11 @@ def filter_exposure_complete_cohort(df: pd.DataFrame) -> pd.DataFrame:
         b7_numeric,
         cohort['age_at_survey_months']
     )
-    cohort['is_exposure_complete'] = 1
-    
+    # is_exposure_complete DEPRECATED — was incorrectly hardcoded to 1 for all
+    # children regardless of age.  Retained as NaN for backward-compat.
+    # Use completed_5yr_followup (computed below) instead.
+    cohort['is_exposure_complete'] = np.nan
+
     # Normalize survey weights: DHS v005 has 6 implied decimal places
     cohort['sample_weight'] = pd.to_numeric(cohort['v005'], errors='coerce') / 1_000_000.0
     # Exclude records with zero or negative sample weights (DHS non-sample / pilot clusters)
@@ -100,8 +123,37 @@ def filter_exposure_complete_cohort(df: pd.DataFrame) -> pd.DataFrame:
     cohort['psu'] = cohort['v021'].astype(str)
     cohort['strata'] = cohort['v022'].astype(str)
     
+    # ------------------------------------------------------------------ #
+    # Follow-up completeness flag                                         #
+    # ------------------------------------------------------------------ #
+    # A child aged < 60 months at interview who is alive has NOT yet had  #
+    # the opportunity to die before age 5.  Their survival to age 5 is   #
+    # censored.  Only dead children (whose death age < 60 is recorded)   #
+    # have a definitively completed 5-year follow-up window.             #
+    # Note: by cohort construction age_at_survey_months is always < 60,  #
+    # so "alive AND age >= 60" is impossible here.                        #
+    cohort['completed_5yr_followup'] = (cohort['target_u5m'] == 1).astype(int)
+
+    # Composite wave-scoped PSU / strata identifiers.                    #
+    # DHS re-uses integer PSU IDs across survey waves; a raw ID of "361" #
+    # in 2004 is a different physical cluster from "361" in 2022.        #
+    # Always use psu_wave / strata_wave for bootstrap resampling.        #
+    cohort['psu_wave']    = cohort['round'] + '_' + cohort['v021'].astype(str)
+    cohort['strata_wave'] = cohort['round'] + '_' + cohort['v022'].astype(str)
+
+    # Keep raw psu/strata for backward-compatibility with existing code,  #
+    # but document that they must NOT be used for multi-wave bootstraps.  #
+    cohort['psu']    = cohort['v021'].astype(str)
+    cohort['strata'] = cohort['v022'].astype(str)
+
     # Strict verification: Ensure no leakage columns remain
     for leak_col in LEAKAGE_COLUMNS:
         assert leak_col not in cohort.columns, f"Data leakage detected: {leak_col} present in cohort!"
-        
+
+    # Ensure outcome source variables are not mistakenly used as features.
+    # They remain in the frame for reference / audit but are marked here.
+    # LeakageFreePreprocessor's CANDIDATE_FEATURES list must NOT include them.
+    assert 'b5' in cohort.columns, "b5 expected for audit; drop explicitly in feature build step."
+    assert 'b7' in cohort.columns, "b7 expected for audit; drop explicitly in feature build step."
+
     return cohort

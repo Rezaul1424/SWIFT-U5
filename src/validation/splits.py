@@ -43,8 +43,11 @@ TARGET_COLUMN = 'target_u5m'
 WEIGHT_COLUMN = 'sample_weight'
 ROUND_COLUMN = 'round'
 DIVISION_COLUMN = 'division_7'
-PSU_COLUMN = 'psu'
-STRATA_COLUMN = 'strata'
+# Wave-scoped composite identifiers: use these for bootstrap resampling.
+# DHS re-uses raw PSU/strata IDs across waves; psu_wave = "<round>_<v021>"
+# guarantees uniqueness across the pooled multi-wave dataset.
+PSU_COLUMN = 'psu_wave'
+STRATA_COLUMN = 'strata_wave'
 
 
 def get_forward_chaining_cuts(df: pd.DataFrame) -> List[Dict]:
@@ -113,19 +116,47 @@ def get_matched_n_random_split(df: pd.DataFrame, n_test_target: int) -> Tuple[pd
 
 
 def encode_features(df: pd.DataFrame, train_idx: pd.Index,
-                    imputer_medians: Optional[Dict] = None) -> Tuple[pd.DataFrame, Dict]:
+                    imputer_medians: Optional[Dict] = None,
+                    division_categories: Optional[List[str]] = None) -> Tuple[pd.DataFrame, Dict]:
     """
     Prepare feature matrix with train-only imputation.
-    Division_7 is one-hot encoded.
-    Numeric missing values are filled with train-set medians.
-    Returns encoded X dataframe and fitted imputation dict.
+
+    Division_7 is one-hot encoded using **training categories only**.
+    Any division value present in test but absent in training is mapped to
+    all-zero dummy columns (unknown-category safe).
+
+    Parameters
+    ----------
+    df : full DataFrame (all rows; slicing to train/test is done by callers)
+    train_idx : Index of training rows; used to discover OHE categories and medians
+    imputer_medians : pre-fitted median dict (pass on subsequent test-set calls)
+    division_categories : pre-fitted list of division dummies (pass on test-set calls)
+
+    Returns
+    -------
+    X : encoded float64 DataFrame aligned to all rows of df
+    imputer_medians : fitted imputation dict
     """
-    X = df[FEATURE_COLUMNS + [DIVISION_COLUMN]].copy()
+    X = df[FEATURE_COLUMNS].copy()
 
-    # One-hot encode division_7
-    X = pd.get_dummies(X, columns=[DIVISION_COLUMN], prefix='div', drop_first=False)
+    # ------------------------------------------------------------------ #
+    # One-hot encode division_7 from TRAIN categories only                #
+    # ------------------------------------------------------------------ #
+    div_series = df[DIVISION_COLUMN].astype(str)
 
-    # Train-only imputation: fit medians on train, apply to all
+    if division_categories is None:
+        # Discover categories from training data only
+        train_div = div_series.loc[train_idx]
+        division_categories = sorted(train_div.unique().tolist())
+
+    # Encode the division column using discovered training categories
+    for cat in division_categories:
+        X[f'div_{cat}'] = (div_series == cat).astype(np.float64)
+    # Unknown categories (present in test but not training) → all zeros → handled naturally
+
+    # ------------------------------------------------------------------ #
+    # Train-only imputation: fit medians on train, apply to all           #
+    # ------------------------------------------------------------------ #
     if imputer_medians is None:
         imputer_medians = {}
         train_X = X.loc[train_idx]
@@ -135,9 +166,10 @@ def encode_features(df: pd.DataFrame, train_idx: pd.Index,
                 imputer_medians[col] = 0.0 if pd.isna(med) else float(med)
 
     for col, median_val in imputer_medians.items():
-        X[col] = X[col].fillna(median_val)
+        if col in X.columns:
+            X[col] = X[col].fillna(median_val)
 
-    # Final guarantee: zero NaNs and numeric float64 to prevent object array creation in numpy
+    # Final guarantee: zero NaNs and numeric float64
     X = X.fillna(0.0).astype(np.float64)
 
     return X, imputer_medians

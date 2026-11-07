@@ -1,7 +1,17 @@
 """
 PSU-stratified cluster bootstrap for SWIFT-U5.
-Resamples PSUs within strata (DHS survey design-aware resampling)
-to produce 95% CIs and paired bootstrap test statistics.
+
+Resamples PSUs within strata (DHS survey design-aware resampling) to produce
+95% CIs and paired bootstrap test statistics.
+
+IMPORTANT — PSU IDENTITY
+------------------------
+DHS re-uses integer PSU identifiers across survey waves; a raw PSU ID of "361"
+in 2004 is a *different* physical cluster from "361" in 2022.  When evaluating
+on a pooled multi-wave test set, the ``psu_col`` and ``strata_col`` parameters
+must therefore reference the **wave-scoped composite columns** ``psu_wave`` and
+``strata_wave`` (created by ``cohort.filter_exposure_complete_cohort``), not the
+raw ``psu`` / ``strata`` columns.  The defaults below enforce this.
 """
 
 from typing import Dict, List, Optional, Callable
@@ -35,8 +45,8 @@ def _resample_cluster_indices(df: pd.DataFrame,
 def bootstrap_metrics(df_test: pd.DataFrame,
                       y_prob: np.ndarray,
                       n_replicates: int = 1000,
-                      psu_col: str = 'psu',
-                      strata_col: str = 'strata',
+                      psu_col: str = 'psu_wave',
+                      strata_col: str = 'strata_wave',
                       target_col: str = 'target_u5m',
                       weight_col: str = 'sample_weight',
                       screening_capacities: Optional[List[float]] = None,
@@ -45,6 +55,16 @@ def bootstrap_metrics(df_test: pd.DataFrame,
     PSU-stratified cluster bootstrap to compute 95% CIs for metrics.
     Default 1,000 replicates per approved Statistical Analysis Plan.
     Precomputes cluster-to-index mappings for efficient execution.
+
+    Parameters
+    ----------
+    psu_col : str
+        Column containing the PSU identifier.  For multi-wave test sets, pass
+        ``'psu_wave'`` (the wave-prefixed composite, e.g. ``"2022_361"``), which
+        guarantees uniqueness across waves.  Defaults to ``'psu_wave'``.
+    strata_col : str
+        Column containing the stratum identifier.  Use ``'strata_wave'`` for
+        multi-wave test sets.  Defaults to ``'strata_wave'``.
     """
     if screening_capacities is None:
         screening_capacities = [0.05, 0.10, 0.20]

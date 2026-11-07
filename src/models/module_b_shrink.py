@@ -3,10 +3,19 @@ Module B: Division-Shrunk Head via Empirical Bayes for SWIFT-U5.
 
 Fits a division-specific intercept and slope on the model logit scale,
 shrunk toward the robust national values by Empirical Bayes in proportion
-to observed division death volume:
+to observed division death volume (survey-weighted):
+
+  D_d     = weighted death count in division d
   lambda_d = D_d / (D_d + kappa)
   alpha_d* = lambda_d * alpha_d + (1 - lambda_d) * alpha_0
   beta_d*  = lambda_d * beta_d  + (1 - lambda_d) * beta_0
+
+Weighted death counts are used because the study estimand is a survey-weighted
+population quantity; raw counts would give excessive shrinkage in divisions
+with high sampling probabilities.
+
+Failed division fits fall back to national parameters and are **explicitly
+logged** in ``self.fallback_log_`` rather than failing silently.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -27,7 +36,8 @@ class ModuleBDivisionShrunkHead:
         self.national_slope_: float = 1.0
         self.shrunk_params_: Dict[str, Tuple[float, float]] = {}
         self.shrinkage_factors_: Dict[str, float] = {}
-        self.division_deaths_: Dict[str, int] = {}
+        self.division_deaths_: Dict[str, float] = {}   # weighted death counts
+        self.fallback_log_: Dict[str, str] = {}        # records every fallback
         self.is_fitted: bool = False
 
     def fit(self,
@@ -60,13 +70,19 @@ class ModuleBDivisionShrunkHead:
 
         for div in unique_divs:
             div_mask = (division_series == div).values
-            div_deaths = int(y_true[div_mask].sum())
-            self.division_deaths_[div] = div_deaths
+            # Survey-weighted death count (more appropriate for a survey-weighted estimand
+            # than unweighted raw counts, which overweight high-sampling-fraction divisions)
+            div_deaths_w = float((w[div_mask] * y_true[div_mask]).sum())
+            div_deaths_raw = int(y_true[div_mask].sum())
+            self.division_deaths_[div] = div_deaths_w
 
-            if div_deaths < 5 or div_mask.sum() < 30:
-                # Fall back to national parameters if virtually no deaths
+            if div_deaths_raw < 5 or div_mask.sum() < 30:
+                # Insufficient events for stable division fit — fall back to national
+                reason = (f"div_deaths_raw={div_deaths_raw} < 5 "
+                          f"or n_div={div_mask.sum()} < 30")
                 self.shrunk_params_[div] = (self.national_intercept_, self.national_slope_)
                 self.shrinkage_factors_[div] = 0.0
+                self.fallback_log_[div] = f"FALLBACK_TO_NATIONAL: {reason}"
                 continue
 
             z_div = z_base[div_mask]
@@ -78,13 +94,15 @@ class ModuleBDivisionShrunkHead:
                 lr_div.fit(z_div, y_div, sample_weight=w_div)
                 div_slope = float(lr_div.coef_[0][0])
                 div_intercept = float(lr_div.intercept_[0])
-            except Exception:
+            except Exception as exc:
+                # Fit failed — fall back to national and log the reason explicitly
+                self.fallback_log_[div] = f"FALLBACK_TO_NATIONAL: fit failed — {exc}"
                 div_slope = self.national_slope_
                 div_intercept = self.national_intercept_
 
-            # Empirical Bayes shrinkage factor
+            # Empirical Bayes shrinkage factor (uses weighted death count)
             # lambda_d -> 1 when deaths are high, -> 0 when deaths are scarce
-            lambda_d = float(div_deaths / (div_deaths + self.shrinkage_kappa))
+            lambda_d = float(div_deaths_w / (div_deaths_w + self.shrinkage_kappa))
             self.shrinkage_factors_[div] = lambda_d
 
             alpha_shrunk = lambda_d * div_intercept + (1.0 - lambda_d) * self.national_intercept_
