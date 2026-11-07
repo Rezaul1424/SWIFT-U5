@@ -28,10 +28,10 @@ from src.models.baselines import (
     compute_scale_pos_weight
 )
 from src.features.build_features import LeakageFreePreprocessor, TARGET_COLUMN, WEIGHT_COLUMN, DIVISION_COLUMN
-from src.evaluation.metrics import compute_all_metrics
+from src.evaluation.metrics import compute_all_metrics, compute_youden_threshold_from_validation
 from src.evaluation.bootstrap import bootstrap_metrics, paired_bootstrap_test
 
-N_BOOTSTRAP = 100
+N_BOOTSTRAP = 1000  # per Statistical Analysis Plan (was 100)
 SCREENING_CAPACITIES = [0.05, 0.10, 0.20]
 
 
@@ -64,13 +64,30 @@ def evaluate_model_on_cut(model_obj,
                           target_round: str,
                           is_swift: bool = False,
                           model_type: str = 'xgboost',
-                          run_bootstrap: bool = True) -> Tuple[Dict, np.ndarray]:
-    """Train and evaluate a model on a single temporal cut, returning metrics and predicted probs."""
+                          run_bootstrap: bool = True,
+                          df_val: Optional[pd.DataFrame] = None,
+                          youden_threshold_w: Optional[float] = None,
+                          youden_threshold_uw: Optional[float] = None) -> Tuple[Dict, np.ndarray]:
+    """Train and evaluate a model on a single temporal cut.
+
+    Parameters
+    ----------
+    df_val : held-out validation round (e.g. 2017-18); passed to SWIFT-U5 fit()
+        for Module C calibration. When provided and youden thresholds are None,
+        thresholds are derived from validation predictions (correct path).
+    youden_threshold_w / _uw : pre-frozen Youden thresholds from validation data.
+        When supplied, these are passed directly to compute_all_metrics so that
+        test-set labels are never used for threshold selection.
+    """
     y_test = df_test[TARGET_COLUMN].values.astype(int)
     w_test = df_test[WEIGHT_COLUMN].values.astype(float)
 
     if is_swift:
-        model_obj.fit(df_train, target_round=target_round, df_target_unlabeled=df_test)
+        model_obj.fit(
+            df_train, target_round=target_round,
+            df_target_unlabeled=df_test,
+            df_val=df_val
+        )
         y_prob = model_obj.predict_proba(df_test)
     else:
         # Standard baseline fitting with train-only preprocessing
@@ -98,10 +115,25 @@ def evaluate_model_on_cut(model_obj,
         else:
             raise ValueError(f"Unknown baseline: {model_type}")
 
+    # Derive Youden thresholds from VALIDATION data if not pre-supplied
+    # This prevents test-set labels from being used for threshold selection.
+    thr_w, thr_uw = youden_threshold_w, youden_threshold_uw
+    if (thr_w is None or thr_uw is None) and df_val is not None:
+        if is_swift:
+            y_prob_val = model_obj.predict_proba(df_val)
+        else:
+            X_val, _ = prep.transform(df_val)
+            y_prob_val = clf.predict_proba(X_val)[:, 1]
+        y_true_val = df_val[TARGET_COLUMN].values.astype(int)
+        w_val = df_val[WEIGHT_COLUMN].values.astype(float)
+        thr_w, thr_uw = compute_youden_threshold_from_validation(y_true_val, y_prob_val, w_val)
+
     metrics = compute_all_metrics(
         y_test, y_prob,
         sample_weight=w_test,
-        screening_capacities=SCREENING_CAPACITIES
+        screening_capacities=SCREENING_CAPACITIES,
+        youden_threshold_w=thr_w,
+        youden_threshold_uw=thr_uw,
     )
 
     if run_bootstrap:
@@ -188,8 +220,10 @@ def run_table5_ablation(df: pd.DataFrame) -> pd.DataFrame:
       5. Base Model (No Modules A, B, C)
     """
     print("\n--- Running Table 5: SWIFT-U5 Module Ablation on Test Round 2022 ---")
-    train_rounds = ['2004', '2007', '2011', '2014', '2017-18']
-    df_train = df[df['round'].isin(train_rounds)].copy()
+    # Deployment split: dev=2004–2014, val=2017-18, test=2022
+    dev_rounds = ['2004', '2007', '2011', '2014']
+    df_dev  = df[df['round'].isin(dev_rounds)].copy()
+    df_val  = df[df['round'] == '2017-18'].copy()
     df_test = df[df['round'] == '2022'].copy()
 
     ablation_configs = [
@@ -200,10 +234,32 @@ def run_table5_ablation(df: pd.DataFrame) -> pd.DataFrame:
         ('Base Model (No Modules A, B, C)', False, False, False),
     ]
 
+    # Pre-compute Youden thresholds from VALIDATION data (2017-18).
+    # These are frozen before the test set is ever evaluated.
+    # We use the full SWIFT-U5 for threshold computation; each ablation config
+    # then applies these same thresholds for a fair comparison.
+    # (For final publication, per-configuration thresholds on the val set may also
+    # be reported; here we use a shared threshold for consistent ablation comparison.)
+    print("  Pre-computing Youden thresholds from 2017-18 validation round...")
+    _ref_est = SWIFTU5Estimator(use_module_a=True, use_module_b=True, use_module_c=True, n_estimators=120)
+    _ref_est.fit(df_dev, target_round='2022', df_target_unlabeled=df_test, df_val=df_val)
+    _y_prob_val_ref = _ref_est.predict_proba(df_val)
+    _y_true_val = df_val[TARGET_COLUMN].values.astype(int)
+    _w_val = df_val[WEIGHT_COLUMN].values.astype(float)
+    from src.evaluation.metrics import compute_youden_threshold_from_validation
+    frozen_thr_w, frozen_thr_uw = compute_youden_threshold_from_validation(
+        _y_true_val, _y_prob_val_ref, _w_val
+    )
+    print(f"  Frozen Youden threshold (weighted):   {frozen_thr_w:.5f}")
+    print(f"  Frozen Youden threshold (unweighted): {frozen_thr_uw:.5f}")
+    print(f"  Threshold source: 2017-18 validation predictions (NOT test-set labels)")
+
     # Run Full SWIFT-U5 first to serve as reference
     full_estimator = SWIFTU5Estimator(use_module_a=True, use_module_b=True, use_module_c=True, n_estimators=120)
     full_metrics, full_probs = evaluate_model_on_cut(
-        full_estimator, df_train, df_test, target_round='2022', is_swift=True, run_bootstrap=True
+        full_estimator, df_dev, df_test, target_round='2022', is_swift=True,
+        run_bootstrap=True, df_val=df_val,
+        youden_threshold_w=frozen_thr_w, youden_threshold_uw=frozen_thr_uw,
     )
     full_auroc = full_metrics['auroc_w']
 
@@ -228,7 +284,9 @@ def run_table5_ablation(df: pd.DataFrame) -> pd.DataFrame:
             use_module_a=mod_a, use_module_b=mod_b, use_module_c=mod_c, n_estimators=120
         )
         m, p = evaluate_model_on_cut(
-            est, df_train, df_test, target_round='2022', is_swift=True, run_bootstrap=True
+            est, df_dev, df_test, target_round='2022', is_swift=True,
+            run_bootstrap=True, df_val=df_val,
+            youden_threshold_w=frozen_thr_w, youden_threshold_uw=frozen_thr_uw,
         )
         delta_auc = m['auroc_w'] - full_auroc
 

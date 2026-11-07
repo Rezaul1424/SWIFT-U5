@@ -60,12 +60,38 @@ def _null_brier_score(y_true: np.ndarray,
 
 def _youden_threshold(y_true: np.ndarray, y_prob: np.ndarray,
                        sample_weight: Optional[np.ndarray] = None) -> float:
-    """Return probability threshold that maximises the Youden index (sensitivity + specificity - 1)."""
+    """Return probability threshold that maximises the Youden index (sensitivity + specificity - 1).
+
+    IMPORTANT: This function consumes y_true labels.  It must ONLY be called
+    with VALIDATION data, never with test-set labels.  Use
+    ``compute_youden_threshold_from_validation`` as the public API.
+    """
     from sklearn.metrics import roc_curve
     fpr, tpr, thresholds = roc_curve(y_true, y_prob, sample_weight=sample_weight)
     j = tpr - fpr
     best = np.argmax(j)
     return float(thresholds[best])
+
+
+def compute_youden_threshold_from_validation(
+        y_true_val: np.ndarray,
+        y_prob_val: np.ndarray,
+        sample_weight_val: Optional[np.ndarray] = None) -> Tuple[float, float]:
+    """
+    Compute and FREEZE Youden thresholds from HELD-OUT VALIDATION data.
+
+    Call this once using 2017-18 validation predictions.  Pass the returned
+    thresholds as ``youden_threshold_w`` / ``youden_threshold_uw`` to every
+    subsequent call to ``compute_all_metrics`` that evaluates the TEST set.
+
+    Returns
+    -------
+    threshold_w  : float — Youden threshold optimised with survey weights
+    threshold_uw : float — Youden threshold optimised without survey weights
+    """
+    threshold_w  = _youden_threshold(y_true_val, y_prob_val, sample_weight_val)
+    threshold_uw = _youden_threshold(y_true_val, y_prob_val, None)
+    return threshold_w, threshold_uw
 
 
 def _classification_metrics_at_threshold(y_true: np.ndarray, y_prob: np.ndarray,
@@ -207,7 +233,9 @@ def compute_all_metrics(y_true: np.ndarray,
                       sample_weight: Optional[np.ndarray] = None,
                       screening_capacities: List[float] = None,
                       compute_unweighted: bool = True,
-                      compute_calibration: bool = True) -> Dict:
+                      compute_calibration: bool = True,
+                      youden_threshold_w: Optional[float] = None,
+                      youden_threshold_uw: Optional[float] = None) -> Dict:
     """
     Compute the complete SWIFT-U5 evaluation metric suite (weighted and optionally unweighted).
 
@@ -220,6 +248,20 @@ def compute_all_metrics(y_true: np.ndarray,
     - Screening utility: sensitivity, PPV, NNS at each capacity fraction
     - Sample / prevalence statistics
 
+    THRESHOLD PROVENANCE
+    --------------------
+    ``youden_threshold_w`` and ``youden_threshold_uw`` are EXTERNALLY SUPPLIED
+    thresholds, optimised on HELD-OUT VALIDATION data (the 2017-18 round), NOT
+    derived from ``y_true`` / ``y_prob`` passed here.  Callers who pass a test
+    set to this function MUST pre-compute these thresholds on validation data
+    and supply them here.
+
+    If neither is supplied (backward compatibility), the threshold is derived
+    internally from the data passed — this is ONLY acceptable when ``y_true``
+    is itself validation data (not test data).  A warning key
+    ``threshold_source`` = ``'internal_from_passed_data'`` is set in the
+    output dict so callers can detect this.
+
     Set compute_calibration=False during bootstrap loops for a ~100x speedup.
     """
     if screening_capacities is None:
@@ -229,6 +271,12 @@ def compute_all_metrics(y_true: np.ndarray,
     y_prob = np.asarray(y_prob, dtype=float)
 
     metrics = {}
+
+    # Record threshold provenance for audit
+    if youden_threshold_w is not None:
+        metrics['threshold_source'] = 'external_validation'
+    else:
+        metrics['threshold_source'] = 'internal_from_passed_data'
 
     # ------------------------------------------------------------------ #
     # Weighted metrics                                                     #
@@ -252,8 +300,12 @@ def compute_all_metrics(y_true: np.ndarray,
         metrics['ece_w'] = _expected_calibration_error(y_true, y_prob, sample_weight)
 
     # Classification metrics at Youden threshold (weighted)
+    # Threshold must come from VALIDATION data, not from y_true here
     try:
-        thr_w = _youden_threshold(y_true, y_prob, sample_weight)
+        if youden_threshold_w is None:
+            thr_w = _youden_threshold(y_true, y_prob, sample_weight)
+        else:
+            thr_w = float(youden_threshold_w)
         clf_w = _classification_metrics_at_threshold(y_true, y_prob, thr_w, sample_weight)
         for k, v in clf_w.items():
             metrics[f'{k}_w'] = v
@@ -287,7 +339,10 @@ def compute_all_metrics(y_true: np.ndarray,
 
         # Classification metrics at Youden threshold (unweighted)
         try:
-            thr_uw = _youden_threshold(y_true, y_prob, None)
+            if youden_threshold_uw is None:
+                thr_uw = _youden_threshold(y_true, y_prob, None)
+            else:
+                thr_uw = float(youden_threshold_uw)
             clf_uw = _classification_metrics_at_threshold(y_true, y_prob, thr_uw, None)
             for k, v in clf_uw.items():
                 metrics[f'{k}_uw'] = v

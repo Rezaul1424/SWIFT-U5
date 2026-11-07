@@ -123,6 +123,11 @@ def bootstrap_metrics(df_test: pd.DataFrame,
         vals = boot_df[col].dropna().values
         if len(vals) == 0:
             continue
+        # Skip non-numeric columns (e.g., 'threshold_source' string field)
+        try:
+            vals = vals.astype(float)
+        except (ValueError, TypeError):
+            continue
         summary[col] = {
             'mean': float(np.mean(vals)),
             'median': float(np.median(vals)),
