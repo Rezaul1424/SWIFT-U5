@@ -1,0 +1,303 @@
+{
+  "timestamp": "2026-11-08T02:19:10.422331",
+  "config": {
+    "model": "xgboost",
+    "split": "temporal_last_cut (train=2004-2017-18, test=2022)",
+    "n_bootstrap": 10,
+    "seed": 42,
+    "modules": "A=True, B=True, C=True (df_val=2017-18)"
+  },
+  "cohort": {
+    "total_records": 51489,
+    "total_deaths": 2338,
+    "rounds": [
+      "2004",
+      "2007",
+      "2011",
+      "2014",
+      "2017-18",
+      "2022"
+    ],
+    "columns": [
+      "v008",
+      "b3",
+      "v011",
+      "v106",
+      "v133",
+      "v190",
+      "v025",
+      "v024",
+      "bord",
+      "b0",
+      "b11",
+      "m14",
+      "m1",
+      "m45",
+      "m15",
+      "m17",
+      "m18",
+      "b5",
+      "b7",
+      "v005",
+      "v021",
+      "v022",
+      "round",
+      "age_at_survey_months",
+      "target_u5m",
+      "age_at_death_months",
+      "exposure_months",
+      "is_exposure_complete",
+      "sample_weight",
+      "psu",
+      "strata",
+      "completed_5yr_followup",
+      "psu_wave",
+      "strata_wave",
+      "division_name",
+      "division_7",
+      "division_8",
+      "maternal_age_at_birth",
+      "maternal_education",
+      "maternal_education_years",
+      "wealth_quintile",
+      "residence_urban",
+      "birth_order",
+      "parity_before",
+      "is_first_birth",
+      "birth_interval_missing",
+      "preceding_birth_interval",
+      "is_twin",
+      "anc_visits",
+      "anc_visits_missing",
+      "tetanus_toxoid",
+      "tetanus_toxoid_missing",
+      "iron_supplementation",
+      "iron_supplementation_missing",
+      "facility_delivery",
+      "facility_delivery_missing",
+      "caesarean_delivery",
+      "caesarean_delivery_missing",
+      "birth_size",
+      "birth_size_missing"
+    ]
+  },
+  "leakage": {
+    "forbidden_cols_found": [],
+    "outcome_sources_in_parquet": [
+      "b5",
+      "b7"
+    ],
+    "PASS": true
+  },
+  "psu_identity": {
+    "psu_wave_column_present": true,
+    "strata_wave_column_present": true,
+    "raw_psu_overlap_2004_2022": 360,
+    "wave_psu_overlap_2004_2022": 0,
+    "PASS": true
+  },
+  "followup": {
+    "completed_5yr_followup_sum": 2338,
+    "target_u5m_sum": 2338,
+    "match": true,
+    "is_exposure_complete_all_nan": true
+  },
+  "split": {
+    "dev_rounds": [
+      "2004",
+      "2007",
+      "2011",
+      "2014"
+    ],
+    "val_round": "2017-18",
+    "test_round": "2022",
+    "n_dev": 29686,
+    "n_val": 8684,
+    "n_test": 13119,
+    "deaths_dev": 1574,
+    "deaths_val": 356,
+    "deaths_test": 408
+  },
+  "weights": {
+    "dev_eff_n": 20868.37946401331,
+    "val_eff_n": 7005.455670613845,
+    "test_eff_n": 10458.337353536675
+  },
+  "module_c_in_sample_warning": 0,
+  "module_a": {
+    "density_ratio_fitted": true,
+    "w_min": 0.019281468379745606,
+    "w_max": 15.227324579089435,
+    "w_mean": 1.0,
+    "w_std": 2.140928665468771,
+    "ess_before_clip": 2700.286674490419,
+    "ess_after_clip": 5316.664873760387,
+    "composite_clip_value": 3.5307618285103683,
+    "n_clipped_obs": 297
+  },
+  "module_b": {
+    "national_intercept": -2.6775535576682445,
+    "national_slope": 1.5576612739111304,
+    "n_divisions": 7,
+    "n_fallbacks": 0,
+    "shrinkage_factors": {
+      "barishal": 0.7006216445426006,
+      "chattogram": 0.9166051062439436,
+      "dhaka": 0.9209784698134841,
+      "khulna": 0.8523220827814412,
+      "rajshahi": 0.8503213531750469,
+      "sylhet": 0.8467661988303775,
+      "rangpur": 0.8155218582380719
+    }
+  },
+  "module_c": {
+    "slope": 0.5386301632246249,
+    "intercept": -1.1386767847541663,
+    "fit_failures": {},
+    "historical": {
+      "2017-18": [
+        -1.1386767847541663,
+        0.5386301632246249
+      ]
+    }
+  },
+  "predictions": {
+    "n_test": 13119,
+    "prob_min": 0.0022387640455331288,
+    "prob_max": 0.43844081803119833,
+    "prob_mean": 0.04077894222458511,
+    "prob_p95": 0.07914671876253168,
+    "any_nan": false,
+    "any_out_of_bounds": false
+  },
+  "metrics": {
+    "threshold_source": "external_validation",
+    "auroc_w": 0.6182169657431555,
+    "auprc_w": 0.07899248012776282,
+    "brier_w": 0.02867736274841791,
+    "brier_null_w": 0.02903902293166708,
+    "brier_skill_score_w": 0.012454282091384772,
+    "cal_slope_w": 0.796710073139941,
+    "cal_intercept_w": -0.9187807513770213,
+    "ece_w": 0.013980417256347414,
+    "accuracy_w": 0.7072253501433144,
+    "precision_w": 0.04685392120379988,
+    "recall_w": 0.45392818830523446,
+    "specificity_w": 0.7150418220873402,
+    "npv_w": 0.9769759024654371,
+    "f1_w": 0.0849403968839402,
+    "balanced_accuracy_w": 0.5844850051962873,
+    "mcc_w": 0.06345490960551595,
+    "tp_w_w": 178.26624206872341,
+    "tn_w_w": 9099.823126461419,
+    "fp_w_w": 3626.457834136577,
+    "fn_w_w": 214.45279733328002,
+    "threshold_used_w": 0.04545824542478797,
+    "sensitivity_5pct_w": 0.1694189577143511,
+    "ppv_5pct_w": 0.10360035221581748,
+    "nns_5pct_w": 9.65247683634151,
+    "sensitivity_10pct_w": 0.2469405636255672,
+    "ppv_10pct_w": 0.0778807567688426,
+    "nns_10pct_w": 12.840142308427922,
+    "sensitivity_20pct_w": 0.35159866749699253,
+    "ppv_20pct_w": 0.05570714124248559,
+    "nns_20pct_w": 17.95101988176231,
+    "auroc_uw": 0.6315272706517898,
+    "auprc_uw": 0.08173894413857861,
+    "brier_uw": 0.029681057945593513,
+    "brier_null_uw": 0.030132725664298976,
+    "brier_skill_score_uw": 0.01498927523973026,
+    "cal_slope_uw": 0.8646703849068974,
+    "cal_intercept_uw": -0.6906012007940193,
+    "ece_uw": 0.012082717706662874,
+    "accuracy_uw": 0.6941077826053815,
+    "precision_uw": 0.049712715463402446,
+    "recall_uw": 0.4877450980392157,
+    "specificity_uw": 0.7007316497521832,
+    "npv_uw": 0.9770732777534006,
+    "f1_uw": 0.09022897302199047,
+    "balanced_accuracy_uw": 0.5942383738956994,
+    "mcc_uw": 0.0710530568509583,
+    "tp_w_uw": 199.0,
+    "tn_w_uw": 8907.0,
+    "fp_w_uw": 3804.0,
+    "fn_w_uw": 209.0,
+    "threshold_used_uw": 0.04545824542478797,
+    "sensitivity_5pct_uw": 0.17401960784313725,
+    "ppv_5pct_uw": 0.10823170731707317,
+    "nns_5pct_uw": 9.23943661971831,
+    "sensitivity_10pct_uw": 0.25980392156862747,
+    "ppv_10pct_uw": 0.08079268292682927,
+    "nns_10pct_uw": 12.377358490566037,
+    "sensitivity_20pct_uw": 0.3799019607843137,
+    "ppv_20pct_uw": 0.05907012195121951,
+    "nns_20pct_uw": 16.929032258064517,
+    "n_test": 13119,
+    "n_deaths_test": 408,
+    "prevalence_uw": 0.031099931397210154,
+    "prevalence_w": 0.02993513525436416,
+    "eff_n": 10458.337353536675,
+    "prevalence": 0.031099931397210154
+  },
+  "metrics_completeness": {
+    "missing": [],
+    "nan": [],
+    "PASS": true
+  },
+  "bootstrap": {
+    "n_replicates_requested": 10,
+    "n_metrics_returned": 33,
+    "has_auroc_ci": true,
+    "auroc_ci": {
+      "mean": 0.6160278695975205,
+      "median": 0.6040700494172713,
+      "ci_lower_95": 0.5929623102023848,
+      "ci_upper_95": 0.6680664930158748,
+      "std": 0.025150763493576554
+    },
+    "metadata": {
+      "n_requested": 10,
+      "n_succeeded": 10,
+      "n_failed_degenerate": 0,
+      "non_numeric_fields_excluded": [
+        "threshold_source"
+      ]
+    }
+  },
+  "dca": {
+    "rows": 60,
+    "PASS": true
+  },
+  "six_wave_integrity": {
+    "rounds_present": [
+      "2004",
+      "2007",
+      "2011",
+      "2014",
+      "2017-18",
+      "2022"
+    ],
+    "expected_rounds": [
+      "2004",
+      "2007",
+      "2011",
+      "2014",
+      "2017-18",
+      "2022"
+    ],
+    "rounds_match": true,
+    "n_temporal_cuts": 5,
+    "cuts_ok": true
+  },
+  "scientific_consistency": {
+    "cohort_0_59_months": "True",
+    "outcome_recorded_death_not_confirmed_survival": true,
+    "six_waves_present": true,
+    "five_temporal_transitions": true,
+    "psu_wave_scoped": true,
+    "module_c_on_held_out_val": true,
+    "b5_b7_not_in_features": true,
+    "test_2022_locked": true
+  },
+  "phase6_ready": true
+}

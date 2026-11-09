@@ -50,7 +50,9 @@ def bootstrap_metrics(df_test: pd.DataFrame,
                       target_col: str = 'target_u5m',
                       weight_col: str = 'sample_weight',
                       screening_capacities: Optional[List[float]] = None,
-                      seed: int = 42) -> Dict:
+                      seed: int = 42,
+                      youden_threshold_w: Optional[float] = None,
+                      youden_threshold_uw: Optional[float] = None) -> Dict:
     """
     PSU-stratified cluster bootstrap to compute 95% CIs for metrics.
     Default 1,000 replicates per approved Statistical Analysis Plan.
@@ -65,6 +67,14 @@ def bootstrap_metrics(df_test: pd.DataFrame,
     strata_col : str
         Column containing the stratum identifier.  Use ``'strata_wave'`` for
         multi-wave test sets.  Defaults to ``'strata_wave'``.
+
+    Returns
+    -------
+    Dict with keys:
+      - One entry per numeric metric: ``{metric_name: {mean, median, ci_lower_95, ci_upper_95, std}}``
+      - ``'_bootstrap_meta'``: dict recording ``n_requested``, ``n_succeeded``,
+        ``n_failed_degenerate``, ``non_numeric_fields_excluded`` (list of field
+        names skipped because they were non-numeric metadata).
     """
     if screening_capacities is None:
         screening_capacities = [0.05, 0.10, 0.20]
@@ -77,9 +87,9 @@ def bootstrap_metrics(df_test: pd.DataFrame,
     y_prob_arr = np.asarray(y_prob, dtype=float)
 
     # Precompute cluster index groups (avoids slow pandas groupby inside loop)
-    psu_series = df_test[psu_col].values
+    psu_series    = df_test[psu_col].values
     strata_series = df_test[strata_col].values
-    
+
     unique_strata = np.unique(strata_series)
     strata_psu_map = {}
     for s in unique_strata:
@@ -91,6 +101,8 @@ def bootstrap_metrics(df_test: pd.DataFrame,
         psu_indices_map[p] = np.where(psu_series == p)[0]
 
     boot_results = []
+    n_failed_degenerate = 0
+
     for _ in range(n_replicates):
         selected_chunks = []
         for s in unique_strata:
@@ -104,29 +116,46 @@ def bootstrap_metrics(df_test: pd.DataFrame,
         y_p = y_prob_arr[boot_idx]
         y_w = weight_arr[boot_idx]
 
-        # Skip degenerate replicates
+        # Skip degenerate replicates (all-positive or all-negative outcome)
+        # and record them explicitly — do not silently suppress.
         if y_t.sum() == 0 or y_t.sum() == len(y_t):
+            n_failed_degenerate += 1
             continue
 
         m = compute_all_metrics(y_t, y_p, sample_weight=y_w,
                                 screening_capacities=screening_capacities,
                                 compute_unweighted=False,
-                                compute_calibration=False)
+                                compute_calibration=False,
+                                youden_threshold_w=youden_threshold_w,
+                                youden_threshold_uw=youden_threshold_uw)
         boot_results.append(m)
 
+    n_succeeded = len(boot_results)
+
     if not boot_results:
-        return {}
+        return {
+            '_bootstrap_meta': {
+                'n_requested': n_replicates,
+                'n_succeeded': 0,
+                'n_failed_degenerate': n_failed_degenerate,
+                'non_numeric_fields_excluded': [],
+            }
+        }
 
     boot_df = pd.DataFrame(boot_results)
     summary = {}
+    non_numeric_excluded = []
+
     for col in boot_df.columns:
         vals = boot_df[col].dropna().values
         if len(vals) == 0:
             continue
-        # Skip non-numeric columns (e.g., 'threshold_source' string field)
+        # Skip non-numeric columns (e.g., 'threshold_source' string metadata)
+        # Record them explicitly rather than silently suppressing.
         try:
             vals = vals.astype(float)
         except (ValueError, TypeError):
+            non_numeric_excluded.append(col)
             continue
         summary[col] = {
             'mean': float(np.mean(vals)),
@@ -135,6 +164,14 @@ def bootstrap_metrics(df_test: pd.DataFrame,
             'ci_upper_95': float(np.percentile(vals, 97.5)),
             'std': float(np.std(vals)),
         }
+
+    # Attach bootstrap provenance metadata as a reserved key
+    summary['_bootstrap_meta'] = {
+        'n_requested': n_replicates,
+        'n_succeeded': n_succeeded,
+        'n_failed_degenerate': n_failed_degenerate,
+        'non_numeric_fields_excluded': non_numeric_excluded,
+    }
 
     return summary
 

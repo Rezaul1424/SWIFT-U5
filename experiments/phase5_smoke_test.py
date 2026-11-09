@@ -437,9 +437,12 @@ def run_smoke_test():
         target_col=TARGET_COLUMN,
         weight_col=WEIGHT_COLUMN,
         screening_capacities=[0.05, 0.10, 0.20],
-        seed=SEED
+        seed=SEED,
+        youden_threshold_w=frozen_thr_w,
+        youden_threshold_uw=frozen_thr_uw,
     )
-    n_metrics_in_boot = len(boot_summary)
+    meta = boot_summary.get('_bootstrap_meta', {})
+    n_metrics_in_boot = len([k for k in boot_summary if k != '_bootstrap_meta'])
     has_auroc_ci = 'auroc_w' in boot_summary
 
     report['bootstrap'] = {
@@ -447,10 +450,14 @@ def run_smoke_test():
         'n_metrics_returned': n_metrics_in_boot,
         'has_auroc_ci': has_auroc_ci,
         'auroc_ci': boot_summary.get('auroc_w', {}),
+        'metadata': meta,
     }
 
     print(f"  Replicates requested       : {N_BOOT_SMOKE}")
-    print(f"  Metric entries returned    : {n_metrics_in_boot}")
+    print(f"  Replicates succeeded       : {meta.get('n_succeeded', N_BOOT_SMOKE)}")
+    print(f"  Replicates degenerate      : {meta.get('n_failed_degenerate', 0)}")
+    print(f"  Excluded non-numeric meta  : {meta.get('non_numeric_fields_excluded', [])}")
+    print(f"  Numeric metrics returned   : {n_metrics_in_boot}")
     print(f"  AUROC CI present           : {has_auroc_ci}")
     if has_auroc_ci:
         ci = boot_summary['auroc_w']

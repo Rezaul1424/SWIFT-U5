@@ -140,9 +140,14 @@ def evaluate_model_on_cut(model_obj,
         boot_ci = bootstrap_metrics(
             df_test, y_prob,
             n_replicates=N_BOOTSTRAP,
-            screening_capacities=SCREENING_CAPACITIES
+            screening_capacities=SCREENING_CAPACITIES,
+            youden_threshold_w=thr_w,
+            youden_threshold_uw=thr_uw,
         )
         for m_name, ci_dict in boot_ci.items():
+            if m_name == '_bootstrap_meta':
+                metrics['_bootstrap_meta'] = ci_dict
+                continue
             metrics[f"{m_name}_ci_lo"] = ci_dict.get('ci_lower_95', float('nan'))
             metrics[f"{m_name}_ci_hi"] = ci_dict.get('ci_upper_95', float('nan'))
 
