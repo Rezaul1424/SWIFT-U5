@@ -9,6 +9,7 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 os.environ['MPLCONFIGDIR'] = '/tmp'
+from typing import Optional, Dict, List
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -45,10 +46,10 @@ ARM_LABELS = {
 }
 
 
-def make_table2(results: list, model_filter: str = 'xgboost') -> pd.DataFrame:
+def make_table2(results: list, model_filter: Optional[str] = 'xgboost') -> pd.DataFrame:
     """
     Table 2: 2x2 main results table.
-    Filtered to selected model (default: XGBoost).
+    Filtered to selected model (default: XGBoost), or all models if model_filter is None.
     Arms A, B, C, D across all temporal cuts.
     """
     rows = []
@@ -56,12 +57,13 @@ def make_table2(results: list, model_filter: str = 'xgboost') -> pd.DataFrame:
                  'C_temporal_unweighted', 'D_temporal_weighted']
 
     for r in results:
-        if r['model'] != model_filter:
+        if model_filter is not None and r['model'] != model_filter:
             continue
         if r['arm'] not in main_arms:
             continue
 
         row = {
+            'Model': r['model'].upper(),
             'Arm': ARM_LABELS.get(r['arm'], r['arm']),
             'Test Round': r['test_round'],
             'Train Rounds': r['train_rounds'],
@@ -76,12 +78,14 @@ def make_table2(results: list, model_filter: str = 'xgboost') -> pd.DataFrame:
             'NNS @ 10% (W)': f"{r.get('nns_10pct_w', float('nan')):.1f}",
             'NNS @ 20% (W)': f"{r.get('nns_20pct_w', float('nan')):.1f}",
         }
+        if model_filter is not None:
+            row.pop('Model')
         rows.append(row)
 
     return pd.DataFrame(rows)
 
 
-def make_table3(results: list, model_filter: str = 'xgboost') -> pd.DataFrame:
+def make_table3(results: list, model_filter: Optional[str] = 'xgboost') -> pd.DataFrame:
     """
     Table 3: Effect decomposition.
     Measure validation effect (C vs A), weight effect (B vs A), interaction (D vs C).
@@ -91,50 +95,51 @@ def make_table3(results: list, model_filter: str = 'xgboost') -> pd.DataFrame:
     main_arms = ['A_random_unweighted', 'B_random_weighted',
                  'C_temporal_unweighted', 'D_temporal_weighted']
 
-    # Group by cut_label to compute diffs
-    cut_data = {}
-    for r in results:
-        if r['model'] != model_filter:
-            continue
-        if r['arm'] not in main_arms:
-            continue
-        key = (r.get('cut_label', ''), r['arm'])
-        cut_data[key] = r
+    models_to_process = [model_filter] if model_filter is not None else ['xgboost', 'random_forest', 'logistic']
 
-    # Identify temporal cuts
-    cuts = sorted(set(k[0] for k in cut_data.keys()))
-    for cut in cuts:
-        a = cut_data.get((cut, 'A_random_unweighted'))
-        b = cut_data.get((cut, 'B_random_weighted'))
-        c = cut_data.get((cut, 'C_temporal_unweighted'))
-        d = cut_data.get((cut, 'D_temporal_weighted'))
+    for m in models_to_process:
+        # Group by cut_label to compute diffs
+        cut_data = {}
+        for r in results:
+            if r['model'] != m:
+                continue
+            if r['arm'] not in main_arms:
+                continue
+            key = (r.get('cut_label', ''), r['arm'])
+            cut_data[key] = r
 
-        if not all([a, b, c, d]):
-            continue
+        cuts = sorted(set(k[0] for k in cut_data.keys()))
+        for cut in cuts:
+            a = cut_data.get((cut, 'A_random_unweighted'))
+            b = cut_data.get((cut, 'B_random_weighted'))
+            c = cut_data.get((cut, 'C_temporal_unweighted'))
+            d = cut_data.get((cut, 'D_temporal_weighted'))
 
-        def safe_diff(x, y, k):
-            xv = x.get(k, float('nan'))
-            yv = y.get(k, float('nan'))
-            try:
-                return float(yv) - float(xv)
-            except Exception:
-                return float('nan')
+            if not all([a, b, c, d]):
+                continue
 
-        rows.append({
-            'Temporal Cut': cut,
-            'Test Round': c['test_round'],
-            # Validation effect: what temporal validation adds (C vs A) -- inflation
-            'Validation Effect AUROC': safe_diff(c, a, 'auroc_w'),  # negative = temporal deflates
-            'Validation Effect NNS5': safe_diff(c, a, 'nns_5pct_w'),
-            # Weight effect: what weighting adds to random split (B vs A)
-            'Weight Effect AUROC': safe_diff(b, a, 'auroc_w'),
-            'Weight Effect NNS5': safe_diff(b, a, 'nns_5pct_w'),
-            # Interaction: additional gain from combining temporal + weighting
-            'Interaction AUROC': safe_diff(d, c, 'auroc_w') - safe_diff(b, a, 'auroc_w'),
-            # Inflation: how much random inflates vs temporal (A vs C)
-            'AUROC Inflation': safe_diff(a, c, 'auroc_w'),
-            'NNS5 Inflation': safe_diff(a, c, 'nns_5pct_w'),
-        })
+            def val(d, k):
+                return float(d.get(k, float('nan')))
+
+            row = {
+                'Model': m.upper(),
+                'Temporal Cut': cut,
+                'Test Round': c['test_round'],
+                # Validation effect: Temporal (C) minus Random (A) -- negative indicates temporal deflation
+                'Validation Effect AUROC': val(c, 'auroc_w') - val(a, 'auroc_w'),
+                'Validation Effect NNS5': val(c, 'nns_5pct_w') - val(a, 'nns_5pct_w'),
+                # Weight effect: Weighted (B) minus Unweighted (A) in Random split
+                'Weight Effect AUROC': val(b, 'auroc_w') - val(a, 'auroc_w'),
+                'Weight Effect NNS5': val(b, 'nns_5pct_w') - val(a, 'nns_5pct_w'),
+                # Interaction: additional gain from combining temporal + weighting: (D - C) - (B - A)
+                'Interaction AUROC': (val(d, 'auroc_w') - val(c, 'auroc_w')) - (val(b, 'auroc_w') - val(a, 'auroc_w')),
+                # Inflation: Random (A) minus Temporal (C) -- positive indicates random split optimism
+                'AUROC Inflation': val(a, 'auroc_w') - val(c, 'auroc_w'),
+                'NNS5 Inflation': val(a, 'nns_5pct_w') - val(c, 'nns_5pct_w'),
+            }
+            if model_filter is not None:
+                row.pop('Model')
+            rows.append(row)
 
     return pd.DataFrame(rows)
 
@@ -306,21 +311,40 @@ def main():
     table2 = make_table2(results, model_filter='xgboost')
     table2_path = TABLES_DIR / "table2_2x2_main_results.csv"
     table2.to_csv(table2_path, index=False)
+    (WORKSPACE_DIR / "docs" / "tables" / "table2_2x2_main_results.csv").write_text(table2.to_csv(index=False))
     print(f"Table 2 saved: {table2_path}")
 
-    # --- Table 3: Effect Decomposition ---
+    # --- Table 2: All Models (XGBoost, Random Forest, Logistic) ---
+    table2_all = make_table2(results, model_filter=None)
+    table2_all_path = TABLES_DIR / "table2_2x2_all_models.csv"
+    table2_all.to_csv(table2_all_path, index=False)
+    (WORKSPACE_DIR / "docs" / "tables" / "table2_2x2_all_models.csv").write_text(table2_all.to_csv(index=False))
+    print(f"Table 2 (All Models) saved: {table2_all_path}")
+
+    # --- Table 3: Effect Decomposition (XGBoost) ---
     table3 = make_table3(results, model_filter='xgboost')
     table3_path = TABLES_DIR / "table3_effect_decomposition.csv"
     table3.to_csv(table3_path, index=False)
+    (WORKSPACE_DIR / "docs" / "tables" / "table3_effect_decomposition.csv").write_text(table3.to_csv(index=False))
     print(f"Table 3 saved: {table3_path}")
+
+    # --- Table 3: Effect Decomposition (All Models) ---
+    table3_all = make_table3(results, model_filter=None)
+    table3_all_path = TABLES_DIR / "table3_effect_decomposition_all_models.csv"
+    table3_all.to_csv(table3_all_path, index=False)
+    (WORKSPACE_DIR / "docs" / "tables" / "table3_effect_decomposition_all_models.csv").write_text(table3_all.to_csv(index=False))
+    print(f"Table 3 (All Models) saved: {table3_all_path}")
 
     # --- Fig 1: Inflation plot ---
     fig1_path = FIGURES_DIR / "fig1_inflation_plot.png"
     make_figure1(results, model_filter='xgboost', save_path=fig1_path)
+    import shutil
+    shutil.copyfile(fig1_path, WORKSPACE_DIR / "docs" / "figures" / "fig1_inflation_plot.png")
 
     # --- Fig 2: Calibration curves ---
     fig2_path = FIGURES_DIR / "fig2_calibration_curves.png"
     make_figure2(results, model_filter='xgboost', save_path=fig2_path)
+    shutil.copyfile(fig2_path, WORKSPACE_DIR / "docs" / "figures" / "fig2_calibration_curves.png")
 
     print("\n" + "="*70)
     print("  SESSION 2 PIPELINE COMPLETED SUCCESSFULLY!")

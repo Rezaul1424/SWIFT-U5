@@ -338,17 +338,23 @@ def run_session5_pipeline():
     df = pd.read_parquet(parquet_path)
     print(f"Loaded cohort: {len(df):,} births across {df['round'].nunique()} rounds.")
 
-    # 2. Forward temporal split for 2022 test cohort
-    train_mask = df['round'].isin(['2004', '2007', '2011', '2014', '2017-18'])
+    # 2. Authoritative prospective deployment split:
+    # Historical development: 2004-2014 (N=29,686)
+    # Held-out calibration & threshold validation: 2017-18 (N=8,684)
+    # Locked prospective test: 2022 (N=13,119)
+    dev_mask = df['round'].isin(['2004', '2007', '2011', '2014'])
+    val_mask = df['round'] == '2017-18'
     test_mask = df['round'] == '2022'
 
-    df_train = df[train_mask].copy().reset_index(drop=True)
+    df_dev = df[dev_mask].copy().reset_index(drop=True)
+    df_val = df[val_mask].copy().reset_index(drop=True)
     df_test = df[test_mask].copy().reset_index(drop=True)
-    print(f"Training set: N={len(df_train):,} (Rounds 2004-2017-18)")
+    print(f"Development set: N={len(df_dev):,} (Rounds 2004-2014)")
+    print(f"Validation set:  N={len(df_val):,} (Round 2017-18)")
     print(f"Test set (2022): N={len(df_test):,}, Deaths={df_test['target_u5m'].sum():,}")
 
-    # 3. Fit SWIFT-U5 Model
-    print("\n[Step 1/5] Fitting SWIFT-U5 Framework (Modules A+B+C) on multi-round cohort...")
+    # 3. Fit Authoritative SWIFT-U5 Model with Held-Out Validation Calibrator
+    print("\n[Step 1/5] Fitting Authoritative SWIFT-U5 (Modules A+B+C) on dev cohort with held-out validation...")
     swift_model = SWIFTU5Estimator(
         use_module_a=True,
         use_module_b=True,
@@ -358,7 +364,7 @@ def run_session5_pipeline():
         n_estimators=120,
         random_state=42
     )
-    swift_model.fit(df_train, target_round='2022', df_target_unlabeled=df_test)
+    swift_model.fit(df_dev, target_round='2022', df_target_unlabeled=df_test, df_val=df_val)
     y_prob = swift_model.predict_proba(df_test)
     print(f"Predicted risk range: [{y_prob.min():.4f}, {y_prob.max():.4f}], mean={y_prob.mean():.4f}")
 
@@ -383,6 +389,8 @@ def run_session5_pipeline():
     )
     with open(table6_tex_path, 'w', encoding='utf-8') as f:
         f.write(tex_t6)
+    (WORKSPACE_DIR / "docs" / "tables" / "table6_division_nns_capacity.csv").write_text(df_table6_raw.to_csv(index=False))
+    (WORKSPACE_DIR / "docs" / "tables" / "table6_division_nns_capacity.tex").write_text(tex_t6)
     print(f"[+] Saved Table 6 to {table6_csv_path} and {table6_tex_path}")
 
     # 5. Table 7: Equity Audit
@@ -403,6 +411,8 @@ def run_session5_pipeline():
     )
     with open(table7_tex_path, 'w', encoding='utf-8') as f:
         f.write(tex_t7)
+    (WORKSPACE_DIR / "docs" / "tables" / "table7_equity_audit.csv").write_text(df_table7_raw.to_csv(index=False))
+    (WORKSPACE_DIR / "docs" / "tables" / "table7_equity_audit.tex").write_text(tex_t7)
     print(f"[+] Saved Table 7 to {table7_csv_path} and {table7_tex_path}")
 
     # 6. Longitudinal Division Mortality Trends (2004-2022)
@@ -412,6 +422,8 @@ def run_session5_pipeline():
     # Plot Figure 4
     fig4_path = FIGURES_DIR / "fig4_division_risk_atlas.png"
     plot_fig4_division_risk_atlas(df_table6_raw, df_trends, fig4_path)
+    import shutil
+    shutil.copyfile(fig4_path, WORKSPACE_DIR / "docs" / "figures" / "fig4_division_risk_atlas.png")
 
     # 7. Post-Hoc TreeSHAP & Temporal Drift across all cuts
     print("\n[Step 5/5] Computing Post-Hoc TreeSHAP Risk Drivers and SHAP Drift across Cuts...")
@@ -445,6 +457,7 @@ def run_session5_pipeline():
     # Plot Figure 5
     fig5_path = FIGURES_DIR / "fig5_shap_drift_division.png"
     plot_fig5_shap_drift_division(shap_results, fig5_path)
+    shutil.copyfile(fig5_path, WORKSPACE_DIR / "docs" / "figures" / "fig5_shap_drift_division.png")
 
     # 8. Generate Session 5 Report
     report_path = REPORTS_DIR / "session5_policy_equity_report.md"

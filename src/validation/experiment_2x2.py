@@ -297,7 +297,7 @@ def run_2x2_factorial(df: pd.DataFrame,
     print("="*70)
     print("  Threshold derivation: OUT-OF-SAMPLE (penultimate-round model or 5-fold CV)")
 
-    for cut in temporal_cuts:
+    for cut_idx, cut in enumerate(temporal_cuts):
         tr        = cut['train_rounds']
         test_rnd  = cut['test_round']
         train_idx = cut['train_idx']
@@ -307,23 +307,25 @@ def run_2x2_factorial(df: pd.DataFrame,
         print(f"\n--- Temporal Cut: Train={tr} | Test={test_rnd} | "
               f"N_train={cut['n_train']} | N_test={n_test} ---")
 
-        # Matched-n random split (same test set size as temporal test)
-        matched_train_idx, matched_test_idx = get_matched_n_random_split(df, n_test)
+        # Matched-N random split within the contemporary cumulative cohort (Train + Test rounds)
+        # Matches both N_test and N_train for a strict apples-to-apples comparison.
+        df_cum = df.loc[train_idx.union(test_idx)]
+        matched_train_idx, matched_test_idx = get_matched_n_random_split(
+            df_cum, n_test, random_state=42 + cut_idx
+        )
 
-        # Three-way split for random arms: train(70%), val(15%), test(15%)
-        # The val portion is used for OOS threshold derivation only.
-        rand_train_idx, rand_test_idx = get_random_split(df, test_size=0.30)
-        # Further split the random 70% into 70/30 → effective 70%/21%/9% of full
-        # Simpler: re-split rand_train_idx into 82%/18% to get val ≈ 15% of full
-        rng_rand = np.random.default_rng(99)
-        y_rand_train = df.loc[rand_train_idx, TARGET_COLUMN].values
-        dead_rt  = rand_train_idx[y_rand_train == 1]
-        alive_rt = rand_train_idx[y_rand_train == 0]
+        # Out-of-sample threshold split for random arms:
+        # Split matched_train_idx into sub-train (80%) and validation (20%)
+        # to ensure threshold model never sees matched_test_idx.
+        rng_rand = np.random.default_rng(99 + cut_idx)
+        y_rand_train = df.loc[matched_train_idx, TARGET_COLUMN].values
+        dead_rt  = matched_train_idx[y_rand_train == 1]
+        alive_rt = matched_train_idx[y_rand_train == 0]
         rng_rand.shuffle(dead_rt := dead_rt.tolist())
         rng_rand.shuffle(alive_rt := alive_rt.tolist())
-        n_dead_v  = max(1, int(len(dead_rt)  * 0.18))
-        n_alive_v = max(1, int(len(alive_rt) * 0.18))
-        rand_val_idx   = pd.Index(dead_rt[:n_dead_v]  + alive_rt[:n_alive_v])
+        n_dead_v  = max(1, int(len(dead_rt)  * 0.20))
+        n_alive_v = max(1, int(len(alive_rt) * 0.20))
+        rand_val_idx    = pd.Index(dead_rt[:n_dead_v]  + alive_rt[:n_alive_v])
         rand_train2_idx = pd.Index(dead_rt[n_dead_v:] + alive_rt[n_alive_v:])
 
         for model_name in models:
@@ -360,8 +362,8 @@ def run_2x2_factorial(df: pd.DataFrame,
             prov_rand = (f"OOS: threshold model on rand_train2_idx (N={len(rand_train2_idx):,}), "
                          f"predicting on rand_val_idx (N={len(rand_val_idx):,})")
 
-            # --- Arm A: Random, Unweighted ---
-            r = run_single_trial(df, rand_train_idx, rand_test_idx,
+            # --- Arm A: Random, Unweighted (Matched-N) ---
+            r = run_single_trial(df, matched_train_idx, matched_test_idx,
                                   model_name, False, False, 'A_random_unweighted',
                                   test_rnd, tr, run_bootstrap,
                                   youden_threshold_w=thr_uw_rand,
@@ -370,8 +372,8 @@ def run_2x2_factorial(df: pd.DataFrame,
             r['cut_label'] = f"{'_'.join(tr)}->{test_rnd}"
             results.append(r)
 
-            # --- Arm B: Random, Survey-Weighted ---
-            r = run_single_trial(df, rand_train_idx, rand_test_idx,
+            # --- Arm B: Random, Survey-Weighted (Matched-N) ---
+            r = run_single_trial(df, matched_train_idx, matched_test_idx,
                                   model_name, True, True, 'B_random_weighted',
                                   test_rnd, tr, run_bootstrap,
                                   youden_threshold_w=thr_w_rand,

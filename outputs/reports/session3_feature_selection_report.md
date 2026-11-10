@@ -2,7 +2,7 @@
 
 ## 1. Domain Filtering Results (Training Data Only)
 - **Missingness Threshold:** Max 30% missing in training rounds (2004–2017-18).
-- **Dropped Due to High Missingness:** [('tetanus_toxoid', 0.542), ('iron_supplementation', 0.602), ('birth_size', 0.649)]
+- **Dropped Due to High Missingness:** [('tetanus_toxoid', 0.408), ('iron_supplementation', 0.654), ('birth_size', 0.546)]
 - **Collinearity Threshold:** $|r| > 0.80$ pairwise correlation.
 - **Dropped Due to Collinearity:** [('parity_before', 'birth_order', 1.0)]
 - **Features Retained for Stability Selection:** ['maternal_age_at_birth', 'maternal_education', 'wealth_quintile', 'residence_urban', 'birth_order', 'is_first_birth', 'preceding_birth_interval', 'is_twin', 'anc_visits', 'facility_delivery', 'caesarean_delivery']
@@ -12,23 +12,23 @@
 | Feature | LASSO Freq (%) | XGBoost Freq (%) | Min Freq (%) | Classification |
 | :--- | :---: | :---: | :---: | :---: |
 | `anc_visits` | 100.0% | 100.0% | 100.0% | **Stable Core** |
-| `preceding_birth_interval` | 100.0% | 95.0% | 95.0% | **Stable Core** |
-| `is_twin` | 100.0% | 85.0% | 85.0% | **Stable Core** |
-| `maternal_education` | 100.0% | 82.5% | 82.5% | **Stable Core** |
-| `maternal_age_at_birth` | 97.5% | 65.0% | 65.0% | Contextual |
-| `birth_order` | 100.0% | 60.0% | 60.0% | Contextual |
-| `caesarean_delivery` | 100.0% | 55.0% | 55.0% | Contextual |
-| `div_chattogram` | 72.5% | 52.5% | 52.5% | Contextual |
-| `facility_delivery` | 100.0% | 52.5% | 52.5% | Contextual |
-| `wealth_quintile` | 100.0% | 52.5% | 52.5% | Contextual |
-| `div_sylhet` | 100.0% | 52.5% | 52.5% | Contextual |
-| `div_barishal` | 50.0% | 50.0% | 50.0% | Contextual |
-| `div_rajshahi` | 100.0% | 50.0% | 50.0% | Contextual |
-| `is_first_birth` | 100.0% | 47.5% | 47.5% | Contextual |
-| `residence_urban` | 100.0% | 47.5% | 47.5% | Contextual |
-| `div_dhaka` | 87.5% | 47.5% | 47.5% | Contextual |
-| `div_khulna` | 87.5% | 47.5% | 47.5% | Contextual |
-| `div_rangpur` | 100.0% | 47.5% | 47.5% | Contextual |
+| `preceding_birth_interval` | 100.0% | 85.0% | 85.0% | **Stable Core** |
+| `is_twin` | 100.0% | 72.5% | 72.5% | **Stable Core** |
+| `maternal_education` | 100.0% | 65.0% | 65.0% | Contextual |
+| `caesarean_delivery` | 100.0% | 42.5% | 42.5% | Contextual |
+| `maternal_age_at_birth` | 95.0% | 40.0% | 40.0% | Contextual |
+| `birth_order` | 100.0% | 37.5% | 37.5% | Contextual |
+| `div_rangpur` | 100.0% | 35.0% | 35.0% | Contextual |
+| `div_chattogram` | 50.0% | 35.0% | 35.0% | Contextual |
+| `div_sylhet` | 100.0% | 35.0% | 35.0% | Contextual |
+| `wealth_quintile` | 100.0% | 35.0% | 35.0% | Contextual |
+| `is_first_birth` | 100.0% | 32.5% | 32.5% | Contextual |
+| `div_barishal` | 80.0% | 32.5% | 32.5% | Contextual |
+| `residence_urban` | 97.5% | 32.5% | 32.5% | Contextual |
+| `div_dhaka` | 70.0% | 32.5% | 32.5% | Contextual |
+| `div_khulna` | 92.5% | 32.5% | 32.5% | Contextual |
+| `div_rajshahi` | 97.5% | 32.5% | 32.5% | Contextual |
+| `facility_delivery` | 100.0% | 32.5% | 32.5% | Contextual |
 
 ## 3. Rolling Window Temporal Trajectory
 

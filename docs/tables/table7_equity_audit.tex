@@ -3,20 +3,20 @@
 \small
 \begin{tabular}{lllllllllllll}
 \toprule
-Domain & Subgroup & N & Deaths & Prev (%) & Pred Risk (%) & AUROC & Sens@10% [95% CI] & PPV@10% [95% CI] & NNS@10% [95% CI] & Cal Intercept & Cal Slope & Equity Status \\
+Domain & Subgroup & N & Deaths & Prev (\%) & Pred Risk (\%) & AUROC & Sens@10\% [95\% CI] & PPV@10\% [95\% CI] & NNS@10\% [95\% CI] & Cal Intercept & Cal Slope & Equity Status \\
 \midrule
-Overall & National & 13,119 & 408 & 2.99\% & 0.10\% & 0.637 & 25.8\% [20.5, 31.0] & 8.13\% [6.33, 9.99] & 12.3 [10.0, 15.8] & +0.032 & 0.42 & Satisfied \\
-Residence & Rural & 8,761 & 275 & 3.06\% & 0.11\% & 0.643 & 25.4\% [21.1, 30.8] & 8.12\% [6.41, 9.92] & 12.3 [10.1, 15.6] & -0.022 & 0.42 & Satisfied \\
-Residence & Urban & 4,358 & 133 & 2.82\% & 0.07\% & 0.618 & 25.5\% [18.2, 34.9] & 8.52\% [5.73, 11.81] & 11.7 [8.5, 17.5] & +0.206 & 0.45 & Satisfied \\
-Wealth Quintile & Q1 (Poorest) & 2,910 & 117 & 4.07\% & 0.16\% & 0.622 & 27.8\% [19.1, 36.5] & 12.27\% [7.81, 15.88] & 8.2 [6.3, 12.8] & +0.004 & 0.40 & Satisfied \\
-Wealth Quintile & Q2 (Poorer) & 2,604 & 101 & 3.58\% & 0.14\% & 0.645 & 27.7\% [20.6, 37.0] & 10.90\% [7.45, 15.35] & 9.2 [6.5, 13.4] & +0.054 & 0.41 & Satisfied \\
-Wealth Quintile & Q3 (Middle) & 2,551 & 78 & 3.03\% & 0.09\% & 0.636 & 18.7\% [11.2, 29.7] & 6.49\% [3.30, 11.75] & 15.4 [8.5, 30.3] & -0.165 & 0.40 & Flagged (Low Sens) \\
-Wealth Quintile & Q4 (Richer) & 2,518 & 56 & 2.12\% & 0.07\% & 0.595 & 19.3\% [8.4, 29.7] & 4.81\% [1.96, 7.84] & 20.8 [12.8, 50.9] & -0.608 & 0.39 & Flagged (Sens & Cal) \\
-Wealth Quintile & Q5 (Richest) & 2,536 & 56 & 1.94\% & 0.02\% & 0.627 & 24.7\% [10.9, 43.0] & 6.07\% [2.37, 10.45] & 16.5 [9.6, 42.2] & +0.741 & 0.53 & Flagged (Cal Drift) \\
-Maternal Education & No Education & 824 & 28 & 3.35\% & 0.13\% & 0.701 & 36.8\% [14.4, 52.1] & 14.41\% [5.29, 20.82] & 6.9 [4.8, 18.9] & +1.197 & 0.59 & Flagged (Cal Drift) \\
-Maternal Education & Primary & 3,092 & 110 & 3.35\% & 0.17\% & 0.609 & 20.8\% [13.3, 29.0] & 7.60\% [4.12, 11.41] & 13.2 [8.8, 24.3] & -0.776 & 0.32 & Flagged (Cal Drift) \\
-Maternal Education & Secondary & 6,788 & 226 & 3.20\% & 0.09\% & 0.631 & 24.0\% [17.0, 29.6] & 8.22\% [5.67, 10.98] & 12.2 [9.1, 17.6] & +0.055 & 0.42 & Satisfied \\
-Maternal Education & Higher & 2,415 & 44 & 1.75\% & 0.02\% & 0.567 & 22.5\% [11.1, 36.7] & 4.03\% [1.98, 6.41] & 24.8 [15.6, 50.7] & +1.516 & 0.63 & Flagged (Cal Drift) \\
+Overall & National & 13,119 & 408 & 2.99\% & 4.07\% & 0.625 & 24.6\% [19.8, 30.4] & 7.70\% [5.92, 9.57] & 13.0 [10.4, 16.9] & -0.905 & 0.81 & Flagged (Cal Drift) \\
+Residence & Rural & 8,761 & 275 & 3.06\% & 4.23\% & 0.633 & 23.3\% [18.5, 28.8] & 7.26\% [5.55, 9.25] & 13.8 [10.8, 18.0] & -0.811 & 0.84 & Flagged (Cal Drift) \\
+Residence & Urban & 4,358 & 133 & 2.82\% & 3.63\% & 0.601 & 28.5\% [19.3, 35.7] & 9.38\% [6.50, 12.49] & 10.7 [8.0, 15.4] & -1.161 & 0.71 & Flagged (Cal Drift) \\
+Wealth Quintile & Q1 (Poorest) & 2,910 & 117 & 4.07\% & 4.69\% & 0.628 & 27.1\% [16.9, 36.8] & 10.93\% [6.21, 14.76] & 9.2 [6.8, 16.1] & -0.472 & 0.89 & Satisfied \\
+Wealth Quintile & Q2 (Poorer) & 2,604 & 101 & 3.58\% & 4.56\% & 0.629 & 26.4\% [20.1, 36.3] & 10.25\% [7.00, 14.48] & 9.8 [6.9, 14.3] & -0.891 & 0.78 & Flagged (Cal Drift) \\
+Wealth Quintile & Q3 (Middle) & 2,551 & 78 & 3.03\% & 4.15\% & 0.597 & 18.7\% [11.7, 27.8] & 6.02\% [3.19, 9.72] & 16.6 [10.3, 31.4] & -1.340 & 0.66 & Flagged (Cal Drift) \\
+Wealth Quintile & Q4 (Richer) & 2,518 & 56 & 2.12\% & 3.79\% & 0.570 & 21.4\% [9.4, 30.0] & 5.31\% [2.25, 7.64] & 18.8 [13.1, 44.5] & -1.767 & 0.63 & Flagged (Cal Drift) \\
+Wealth Quintile & Q5 (Richest) & 2,536 & 56 & 1.94\% & 2.98\% & 0.611 & 20.2\% [7.6, 34.1] & 4.82\% [1.49, 7.86] & 20.7 [12.7, 67.3] & -1.275 & 0.75 & Flagged (Cal Drift) \\
+Maternal Education & No Education & 824 & 28 & 3.35\% & 4.83\% & 0.709 & 35.1\% [19.0, 54.7] & 13.05\% [6.38, 22.31] & 7.7 [4.5, 15.7] & +0.509 & 1.33 & Insufficient Evidence (n=28 $<$ 50) \\
+Maternal Education & Primary & 3,092 & 110 & 3.35\% & 4.48\% & 0.594 & 20.5\% [11.2, 27.4] & 7.35\% [3.75, 10.80] & 13.6 [9.3, 26.6] & -1.427 & 0.62 & Flagged (Cal Drift) \\
+Maternal Education & Secondary & 6,788 & 226 & 3.20\% & 4.43\% & 0.613 & 23.7\% [17.0, 29.5] & 7.96\% [5.37, 10.28] & 12.6 [9.7, 18.6] & -0.847 & 0.83 & Flagged (Cal Drift) \\
+Maternal Education & Higher & 2,415 & 44 & 1.75\% & 2.10\% & 0.536 & 19.4\% [9.5, 34.2] & 3.17\% [1.37, 5.73] & 31.5 [17.5, 74.3] & -0.841 & 0.82 & Flagged (Cal Drift; n=44 $<$ 50) \\
 \bottomrule
 \end{tabular}
 \caption{Equity Audit of SWIFT-U5 Risk Predictions Across Residence, Wealth Quintiles, and Maternal Education on BDHS 2022 Cohort}

@@ -94,12 +94,14 @@ def get_random_split(df: pd.DataFrame, test_size: float = 0.30) -> Tuple[pd.Inde
     return train_idx, test_idx
 
 
-def get_matched_n_random_split(df: pd.DataFrame, n_test_target: int) -> Tuple[pd.Index, pd.Index]:
+def get_matched_n_random_split(df: pd.DataFrame, n_test_target: int,
+                               random_state: Optional[int] = None) -> Tuple[pd.Index, pd.Index]:
     """
     Stratified random split where test set is exactly n_test_target observations.
     Used to match temporal test set size for fair comparison.
     """
-    rng = np.random.default_rng(RANDOM_SEED + 1)
+    seed = random_state if random_state is not None else (RANDOM_SEED + 1)
+    rng = np.random.default_rng(seed)
     dead_idx = df[df[TARGET_COLUMN] == 1].index.tolist()
     alive_idx = df[df[TARGET_COLUMN] == 0].index.tolist()
 

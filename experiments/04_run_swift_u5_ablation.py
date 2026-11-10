@@ -169,13 +169,30 @@ def run_table4_benchmark(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     ]
 
     print("\n--- Running Table 4: SWIFT-U5 vs. Baselines per Temporal Cut ---")
+    predictions_dir = WORKSPACE_DIR / "outputs" / "predictions"
+    predictions_dir.mkdir(parents=True, exist_ok=True)
+
     for cut in cuts:
         tr_rounds = cut['train_rounds']
         tgt_rnd = cut['test_round']
-        df_train = df.loc[cut['train_idx']].copy()
         df_test = df.loc[cut['test_idx']].copy()
 
-        print(f"\nEvaluating Cut: Train={tr_rounds} -> Test={tgt_rnd} (N_train={len(df_train)}, N_test={len(df_test)})...")
+        # Principled held-out validation split for Module C recalibration and threshold derivation:
+        # For k >= 2 historical rounds, penultimate round serves as df_val, earlier rounds as df_train.
+        # For Cut 5 (2022), df_train is historical Development (2004-2014, N=29,686) and df_val is
+        # held-out Validation (2017-18, N=8,684), matching the authoritative deployment split.
+        if len(tr_rounds) >= 2:
+            dev_rounds = tr_rounds[:-1]
+            val_round = tr_rounds[-1]
+            df_train = df[df['round'].isin(dev_rounds)].copy()
+            df_val = df[df['round'] == val_round].copy()
+            val_info = f"Val={val_round} (N={len(df_val)})"
+        else:
+            df_train = df.loc[cut['train_idx']].copy()
+            df_val = None
+            val_info = "Val=None (in-sample)"
+
+        print(f"\nEvaluating Cut: Train={df_train['round'].unique().tolist()} | {val_info} -> Test={tgt_rnd} (N_train={len(df_train)}, N_test={len(df_test)})...")
 
         for m_label, is_swift, m_type in models_to_test:
             if is_swift:
@@ -186,13 +203,27 @@ def run_table4_benchmark(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
             else:
                 model_obj = None
 
-            metrics, _ = evaluate_model_on_cut(
+            metrics, preds = evaluate_model_on_cut(
                 model_obj, df_train, df_test,
                 target_round=tgt_rnd,
                 is_swift=is_swift,
                 model_type=m_type,
-                run_bootstrap=True
+                run_bootstrap=True,
+                df_val=df_val
             )
+
+            # Persist authoritative predictions for Cut 5 (2022) Full SWIFT-U5
+            if tgt_rnd == '2022' and is_swift:
+                auth_pred_df = df_test[[
+                    TARGET_COLUMN, WEIGHT_COLUMN, DIVISION_COLUMN,
+                    'wealth_quintile', 'residence_urban', 'maternal_education'
+                ]].copy()
+                if 'division_8' in df_test.columns:
+                    auth_pred_df['division_8'] = df_test['division_8']
+                auth_pred_df['y_prob'] = preds
+                auth_path = predictions_dir / "authoritative_swift_u5_2022_predictions.parquet"
+                auth_pred_df.to_parquet(auth_path, index=True)
+                print(f"  [+] Saved Authoritative 2022 Prediction Artifact to {auth_path}")
 
             row = {
                 'Test Round': tgt_rnd,
@@ -366,8 +397,11 @@ def main():
     table4_csv = TABLES_DIR / "table4_swift_vs_baselines.csv"
     table4_tex = TABLES_DIR / "table4_swift_vs_baselines.tex"
     table4.to_csv(table4_csv, index=False)
+    tex_t4 = df_to_clean_latex(table4, "SWIFT-U5 versus Baselines across Forward Temporal Cuts", "tab:table4_benchmark")
     with open(table4_tex, "w", encoding="utf-8") as f:
-        f.write(df_to_clean_latex(table4, "SWIFT-U5 versus Baselines across Forward Temporal Cuts", "tab:table4_benchmark"))
+        f.write(tex_t4)
+    (WORKSPACE_DIR / "docs" / "tables" / "table4_swift_vs_baselines.csv").write_text(table4.to_csv(index=False))
+    (WORKSPACE_DIR / "docs" / "tables" / "table4_swift_vs_baselines.tex").write_text(tex_t4)
     print(f"\nTable 4 CSV saved: {table4_csv}")
     print(f"Table 4 TeX saved: {table4_tex}")
 
@@ -376,8 +410,11 @@ def main():
     table5_csv = TABLES_DIR / "table5_ablation_modules.csv"
     table5_tex = TABLES_DIR / "table5_ablation_modules.tex"
     table5.to_csv(table5_csv, index=False)
+    tex_t5 = df_to_clean_latex(table5, "Ablation of SWIFT-U5 Modules on Primary 2022 Test Round", "tab:table5_ablation")
     with open(table5_tex, "w", encoding="utf-8") as f:
-        f.write(df_to_clean_latex(table5, "Ablation of SWIFT-U5 Modules on Primary 2022 Test Round", "tab:table5_ablation"))
+        f.write(tex_t5)
+    (WORKSPACE_DIR / "docs" / "tables" / "table5_ablation_modules.csv").write_text(table5.to_csv(index=False))
+    (WORKSPACE_DIR / "docs" / "tables" / "table5_ablation_modules.tex").write_text(tex_t5)
     print(f"\nTable 5 CSV saved: {table5_csv}")
     print(f"Table 5 TeX saved: {table5_tex}")
 

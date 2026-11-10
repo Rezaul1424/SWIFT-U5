@@ -112,10 +112,11 @@ def main():
     df = pd.read_parquet(PROCESSED_DATA_DIR / "u5m_harmonized_cohort.parquet")
     print(f"Loaded master cohort: {len(df):,} records")
 
-    # Step 1: Domain filter on primary training pool (2004 to 2017-18)
-    train_rounds = ['2004', '2007', '2011', '2014', '2017-18']
+    # Step 1: Domain filter on development pool (2004 to 2014, N=29,686)
+    # Strictly isolates feature selection to historical development data without 2017-18 or 2022.
+    train_rounds = ['2004', '2007', '2011', '2014']
     df_train = df[df['round'].isin(train_rounds)].copy()
-    print(f"\n[Step 1] Applying Domain Filter on Training Pool ({'+'.join(train_rounds)})...")
+    print(f"\n[Step 1] Applying Domain Filter on Development Pool ({'+'.join(train_rounds)})...")
     retained_features, filter_log = apply_domain_filter(df_train, max_missing_rate=0.30, max_correlation=0.80)
     print(f"  Initial candidates: {filter_log['initial_candidates']}")
     print(f"  Dropped (high missing > 30%): {filter_log['dropped_high_missing']}")

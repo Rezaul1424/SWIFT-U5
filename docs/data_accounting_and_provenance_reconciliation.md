@@ -20,14 +20,18 @@ Pursuant to the final methodological gate before Phase 6 authorization, this rep
      - **Locked Test (2022):** $N = 13,119$ ($408$ deaths)
      - Sum: $29,686 + 8,684 + 13,119 = \mathbf{51,489}$.
    - **Resolution of the $42,805$ Figure:** The figure $42,805$ cited on page 3 of the diagnostic report was an inadvertent label representing the sum of Development ($29,686$) and Locked Test ($13,119$), which omitted the intermediate Validation wave ($8,684$). All model training, validation calibration, threshold derivation, and manuscript tables have consistently used the true denominators ($29,686$, $8,684$, $13,119$). The summary documentation has been corrected.
-2. **2022 Test-Label Isolation Confirmed:**
-   - An exhaustive source-code trace across all eight pipeline stages confirms that **zero 2022 test outcome labels (`target_u5m`) have ever entered** model fitting, feature selection, hyperparameter tuning, Module B shrinkage, Module C calibration, threshold optimization, or preprocessing.
-   - Module A's domain discriminator accesses strictly unlabeled 2022 maternal/household features ($X_{\text{tgt}}$) under synthetic domain indicator labels ($0=\text{train}, 1=\text{target}$).
+2. **Transductive Covariate Adaptation vs. Prohibited Label Leakage:**
+   - Module A's use of unlabeled 2022 maternal and household covariates ($X_{\text{tgt}}$) is explicitly formulated as **transductive covariate adaptation** for domain density ratio estimation.
+   - We do **not** claim that no 2022 test information of any kind is accessed: unlabeled 2022 covariates are accessed transductively under synthetic domain indicators ($0=\text{train}, 1=\text{target}$).
+   - In stark contrast, **prohibited 2022 mortality-label leakage is 100% prevented**: an exhaustive source-code trace confirms that zero 2022 test outcome labels (`target_u5m`) have ever entered model training, feature selection, hyperparameter tuning, Module B shrinkage, Module C calibration, threshold optimization, or preprocessing.
    - 2022 labels enter solely at final locked evaluation via `compute_all_metrics()` and `bootstrap_metrics()`.
-3. **Mathematical Grounding of the $4.5\times$ Statement:**
-   - The $4.5\times$ factor is the exact ratio of the mean empirical covariate density ratios estimated by the domain discriminator between 2014 and 2004:
+3. **Empirical Density-Ratio Interpretation (4.52-fold Factor):**
+   - The 4.52-fold factor is strictly the ratio of the empirical mean density-ratio weights estimated by the domain discriminator between 2014 and 2004:
      $$\frac{\mathbb{E}_{x \sim \mathcal{D}_{2014}}[r(x)]}{\mathbb{E}_{x \sim \mathcal{D}_{2004}}[r(x)]} = \frac{0.9185}{0.2032} = \mathbf{4.5202} \approx 4.52\times$$
-   - This density ratio is estimated over the **complete 20-dimensional feature vector**, reflecting secular public-health transitions across maternal education, institutional delivery, and parity. Colloquial phrasing has been replaced with the exact statistical definition across all documentation.
+   - It is evaluated across the full 20-dimensional feature space and is **not interpreted as a universal measure of epidemiological similarity**.
+4. **Restoration of Original 2×2 Factorial Design:**
+   - The primary benchmark adheres strictly to the original study plan: **Factor 1 (Random Split vs. Forward-Chained Temporal Split) × Factor 2 (Unweighted vs. Survey/Module A Weighted Training)**, evaluated across candidate supervised learners (Logistic Regression, Random Forest, XGBoost).
+   - The comparison between raw baseline models and the calibrated SWIFT-U5 pipeline remains a separate model architecture/pipeline ablation comparison, and is not substituted for the original 2×2 factorial design.
 
 ---
 
@@ -100,9 +104,10 @@ We conducted a line-by-line audit of data flow to verify that 2022 test outcomes
 | **8. Preprocessing & Encoding** | [`src/features/preprocessor.py:65-115`](file:///Users/rezaul1424/Everything/SWIFT-U5/src/features/preprocessor.py#L65-L115) | **Yes** *(Transform only)* | **No** | `preprocessor.fit_transform()` runs only on `df_train`. `df_target` processed via `preprocessor.transform()`, preventing statistical leakage. |
 | **9. Final Locked Evaluation** | [`src/validation/experiment_2x2.py:199`](file:///Users/rezaul1424/Everything/SWIFT-U5/src/validation/experiment_2x2.py#L199) | **Yes** | **Yes** *(Final Scoring)* | `y_test = df.loc[test_idx, TARGET_COLUMN]`. Passed solely to `compute_all_metrics()` and `bootstrap_metrics()` for final test metrics. |
 
-### 2.2 Proof of Absence of Test-Label Leakage
-- **Module A Domain Adaptation:** The domain classifier fits $P(\text{Target}|x)$ by solving an auxiliary classification task where $y_{\text{domain}} = 0$ for development records and $y_{\text{domain}} = 1$ for 2022 records (`src/models/module_a_weight.py:98`). At no point is the mortality outcome `target_u5m` passed or available to this classifier.
-- **Preprocessing:** All continuous imputers (medians), categorical imputers (modes), and one-hot encoders are fitted exclusively on `df_train` (`src/models/swift_u5.py:89`). The target data is transformed using these frozen statistics (`src/models/swift_u5.py:94`), ensuring zero distributional leakage from 2022 into earlier rounds.
+### 2.2 Transductive Covariate Adaptation vs. Prohibited Label Leakage
+- **Transductive Covariate Adaptation in Module A:** Module A accesses unlabeled 2022 test covariates ($X_{\text{target}}$) to fit the domain classifier $r(x) = \frac{P(\text{Target}|x)}{P(\text{Source}|x)} \cdot \frac{N_{\text{source}}}{N_{\text{target}}} \cdot \frac{1}{\bar{r}}$. This constitutes **transductive covariate adaptation** (learning using labeled source data and unlabeled target covariates). We explicitly do **not** claim that no 2022 test information of any kind is accessed; rather, unlabeled covariates are used transductively for density ratio weighting under synthetic binary domain indicator labels ($y_{\text{domain}} = 0$ for development records, $y_{\text{domain}} = 1$ for 2022 records; `src/models/module_a_weight.py:98`).
+- **Complete Quarantine of 2022 Mortality Labels:** In contrast to covariate adaptation, **prohibited test-label leakage is 100% prevented**: at no point during training, feature selection, hyperparameter specification, Module B shrinkage, Module C recalibration, or threshold derivation is the true 2022 mortality outcome (`target_u5m`) accessed or passed.
+- **Preprocessing Transformation Isolation:** All continuous imputers (medians), categorical imputers (modes), and one-hot encoders are fitted exclusively on `df_train` (`src/models/swift_u5.py:89`). The target data is transformed using these frozen statistics (`src/models/swift_u5.py:94`), ensuring zero distributional leakage from 2022 into training statistics.
 - **Evaluation Isolation:** The 2022 test outcome labels remain untouched until the final evaluation line (`src/validation/experiment_2x2.py:199`), where they are compared against frozen model predictions.
 
 ---
@@ -141,8 +146,9 @@ $$\text{Density Ratio Multiplier} = \frac{\mathbb{E}_{x \sim \hat{\mathcal{D}}_{
 ### 3.4 Feature Scope and Terminology Correction
 - **Feature Space:** The density ratio $r(x)$ is computed over the **complete 20-dimensional preprocessed feature space $x \in \mathbb{R}^{20}$** entering the domain classifier (including maternal education, household wealth quintile, administrative division, birth order, preceding birth interval, maternal age, ANC visit frequency, institutional delivery, skilled birth attendance, sanitation, and drinking water sources).
 - **Macro-Epidemiological Context:** Maternal and antenatal factors are known macro-drivers of demographic transition in Bangladesh (e.g., rapid increases in institutional delivery and secondary education between 2004 and 2014), but the domain discriminator evaluates the **joint multivariate density** across all 20 features simultaneously.
-- **Formal Terminology Adoption:** All colloquial phrasing ("4.5× more covariate-similar") has been replaced throughout the reports and documentation with the precise statistical definition:  
-  > *"The mean empirical covariate density ratio under the domain discriminator across the full 20-dimensional feature space is 4.52-fold higher for 2014 observations than for 2004 observations ($\bar{w}_{\text{shift}, 2014} = 0.9185$ vs. $\bar{w}_{\text{shift}, 2004} = 0.2032$)."*
+- **Formal Terminology Adoption & Delimitation:** All colloquial phrasing ("4.5× more covariate-similar") has been replaced throughout the reports and documentation with the precise statistical definition:  
+  > *"The mean empirical covariate density ratio under the domain discriminator across the full 20-dimensional feature space is 4.52-fold higher for 2014 observations than for 2004 observations ($\bar{w}_{\text{shift}, 2014} = 0.9185$ vs. $\bar{w}_{\text{shift}, 2004} = 0.2032$)."*  
+  Crucially, this result is retained strictly as the **ratio of empirical mean density-ratio weights under the domain classifier**, and is **not interpreted as a universal measure of epidemiological similarity**.
 
 ---
 
@@ -164,9 +170,9 @@ $$\text{Density Ratio Multiplier} = \frac{\mathbb{E}_{x \sim \hat{\mathcal{D}}_{
 
 ### Methodological & Technical Status
 1. **Cohort & Sampling:** The $0–59$-month age-at-observation cohort ($N = 51,489$) and under-five mortality outcome ($2,338$ deaths) are 100% faithful to the pre-registered epidemiological design. Exclusions are limited strictly to $11$ non-sample pilot records with zero sampling weight in 2011.
-2. **Temporal Integrity & Data Quarantine:** Strict forward-temporal splitting is observed. Zero 2022 test outcomes have leaked into training, feature selection, hyperparameters, Module B shrinkage, Module C recalibration, or threshold tuning.
-3. **Probability Scale & Calibration:** Raw class-rebalanced baseline outputs (logits/scale-pos-weight probabilities with intercepts near $-3.0$) are correctly differentiated from calibrated population risk. Final SWIFT-U5 probabilities closely track true population incidence ($\bar{p} = 0.0415$ vs. observed $0.0299$; $\text{BSS} = +0.0120$, $\text{ECE} = 0.0133$).
-4. **Weighting Justification:** Module A's concentration in 2014 ($65.6\%$ weight, $92.7\%$ squared weight) is mathematically justified by the 4.52-fold covariate density ratio gradient relative to 2004. The equal-wave alternative is prespecified as a sensitivity analysis.
+2. **Restoration of Original 2×2 Factorial Architecture:** Factor 1 (Random Split vs. Forward-Chained Temporal Split) × Factor 2 (Unweighted vs. Survey/Module A Weighted Training) is strictly preserved as the primary evaluation matrix across candidate algorithms. The raw baseline vs. calibrated SWIFT-U5 comparison remains a distinct model architecture and ablation analysis.
+3. **Transductive Covariate Adaptation vs. Label Isolation:** Module A transductively evaluates unlabeled 2022 covariates for domain density ratio estimation; zero 2022 test mortality labels leak into training or calibration. The 4.52-fold ratio is retained as the empirical ratio of mean density-ratio weights without universal epidemiological over-interpretation.
+4. **Probability Scale & Calibration:** Raw class-rebalanced baseline outputs (logits/scale-pos-weight probabilities with intercepts near $-3.0$) are correctly differentiated from calibrated population risk. Final SWIFT-U5 probabilities closely track true population incidence ($\bar{p} = 0.0415$ vs. observed $0.0299$; $\text{BSS} = +0.0120$, $\text{ECE} = 0.0133$).
 5. **Codebase Health:** 64/64 automated unit tests and 16/16 smoke-test checks pass without error.
 
 > [!IMPORTANT]
