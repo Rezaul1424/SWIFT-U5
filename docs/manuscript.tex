@@ -955,8 +955,9 @@ The five temporal cuts represent separate retrospective experiments: 2004 to 200
 
 \begin{figure}[pos=htbp]
 \centering
-\includegraphics[width=\linewidth]{fig1_inflation_plot.png}
-\caption{ROC-AUC comparison between random-split and forward-temporal evaluation across survey-wave test cuts.}
+\includegraphics[width=0.49\linewidth]{fig1a_auroc_comparison.png}\hfill
+\includegraphics[width=0.49\linewidth]{fig1b_inflation_gap.png}
+\caption{Evaluation design comparison across survey-wave test cuts: (a) AUROC trajectory comparison across random-split and forward-temporal validation arms; (b) AUROC inflation gap ($\text{Arm A} - \text{Arm C}$).}
 \label{fig:inflation}
 \end{figure}
 The prioritization results provide an additional perspective on the evaluation-design comparison. At 5\% capacity in 2022, the random-split arms report NNS values of 4.7 and 4.6, whereas the forward-temporal arms report 8.1 and 8.9. This indicates that ranking performance under random splitting does not necessarily translate into equivalent prioritization yield under forward-temporal evaluation.
@@ -1013,10 +1014,13 @@ The results show that SWIFT-U5 achieves modest discrimination while improving pr
 
 The distinction between discrimination and calibration is important in this low-prevalence setting. A model may rank observations with some predictive information while still producing imperfect absolute risk estimates. Accordingly, the results support a cautious interpretation of SWIFT-U5 as a survey-aware temporal risk-estimation and prioritization framework rather than a high-discrimination individual screening model.
 
-\begin{figure}
+\begin{figure}[pos=htbp]
 \centering
-\includegraphics[width=\linewidth]{fig2_calibration_curves.png}
-\caption{Calibration curves comparing SWIFT-U5 with conventional baseline models on the locked BDHS 2022 test cohort.}
+\includegraphics[width=0.49\linewidth]{fig2a_cal_random_unweighted.png}\hfill
+\includegraphics[width=0.49\linewidth]{fig2b_cal_random_weighted.png}\\[6pt]
+\includegraphics[width=0.49\linewidth]{fig2c_cal_temporal_unweighted.png}\hfill
+\includegraphics[width=0.49\linewidth]{fig2d_cal_temporal_weighted.png}
+\caption{Calibration curves on the locked BDHS 2022 test cohort across evaluation arms: (a) Arm A: Random split, unweighted XGBoost; (b) Arm B: Random split, weighted XGBoost; (c) Arm C: Forward-temporal split, unweighted XGBoost; (d) Arm D: Forward-temporal split, weighted XGBoost.}
 \label{fig:cal_curves}
 \end{figure}
 
@@ -1033,17 +1037,26 @@ Feature-stability analysis was conducted using 40 PSU bootstrap iterations with 
 
 TreeSHAP analysis \cite{lundberg2017} was used to examine the contribution of predictors to the fitted model. The reported SHAP Drift Index remained below 0.25 across historical cuts and was 0.007 for the 2022 evaluation. These findings suggest relatively stable model attribution patterns under the selected analysis. However, feature-selection frequency and SHAP attribution are distinct descriptive measures; neither establishes causal importance or guarantees that predictor effects remain invariant across populations.
 
-\begin{figure}
+\begin{figure}[pos=htbp]
 \centering
-\includegraphics[width=\linewidth]{fig3_feature_stability.png}
-\caption{Feature-selection stability across PSU bootstrap iterations.}
+\includegraphics[width=0.45\linewidth]{fig3a_stability_selection.png}\hfill
+\includegraphics[width=0.53\linewidth]{fig3b_rolling_window_stability.png}
+\caption{Feature-selection stability analysis: (a) dual-method selection frequency under weighted LASSO and XGBoost permutation; (b) rolling-window stability heatmap across historical survey rounds.}
 \label{fig:stability}
 \end{figure}
 
-\begin{figure}
+\begin{figure}[pos=htbp]
 \centering
-\includegraphics[width=\linewidth]{fig5_shap_drift_division.png}
-\caption{Temporal variation in SHAP-based feature contributions across survey-wave evaluations.}
+\begin{minipage}[t]{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{fig5a_shap_global_importance.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{fig5b_shap_regional_variation.png}\\[8pt]
+\includegraphics[width=\linewidth]{fig5c_shap_drift_index.png}
+\end{minipage}
+\caption{TreeSHAP risk-driver attribution and temporal drift: (a) global top 12 predictors by mean absolute SHAP value on the 2022 test set; (b) regional attribution variation heatmap across divisions; (c) temporal SHAP Drift Index (SDI) across forward validation cuts.}
 \label{fig:shap_drift}
 \end{figure}
 
@@ -1077,10 +1090,12 @@ National & 13,119 & 408 & 29.9 & 24.6 [19.8, 30.4] & 13.0 [10.4, 16.9] & 77.0 [5
 \end{tabular}}
 \end{table}
 
-\begin{figure}
+\begin{figure}[pos=htbp]
 \centering
-\includegraphics[width=\linewidth]{fig4_division_risk_atlas.png}
-\caption{Geographic distribution of division-level mortality and capacity-constrained prioritization estimates.}
+\includegraphics[width=0.49\linewidth]{fig4a_observed_vs_predicted_risk.png}\hfill
+\includegraphics[width=0.49\linewidth]{fig4b_screening_efficiency.png}\\[6pt]
+\includegraphics[width=\linewidth]{fig4c_longitudinal_trends.png}
+\caption{Division Risk Atlas and longitudinal dynamics of child mortality in Bangladesh: (a) 2022 observed mortality versus SWIFT-U5 calibrated risk by division; (b) simulated screening efficiency at 10\% capacity (deaths captured per 1,000 prioritized); (c) 18-year longitudinal trajectories across divisions (2004--2022).}
 \label{fig:atlas}
 \end{figure}
 
