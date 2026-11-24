@@ -837,7 +837,7 @@ This section presents the experimental results of SWIFT-U5 on the locked BDHS 20
 \subsection{Results Based on Evaluation Metrics}
 \label{sec:res_metrics}
 
-The locked BDHS 2022 test cohort comprises 13,119 live-birth records, including 408 recorded under-five deaths. The survey-weighted outcome prevalence is approximately 2.99\%. SWIFT-U5 was evaluated at the validation-locked Youden threshold ($\tau_w=0.04546$) and under a fixed top-10\% prioritization capacity. An all-negative classifier is included as a reference for the effect of class imbalance.
+The locked BDHS 2022 test cohort comprises 13,119 live-birth records, including 408 recorded under-five deaths. The survey-weighted outcome prevalence is approximately 2.99\%. Table~\ref{tab:binary_metrics} reports the classification performance of SWIFT-U5 evaluated at the validation-locked Youden threshold ($\tau_w=0.04546$) and under a fixed top-10\% prioritization capacity, with an all-negative classifier included as a reference for the effect of class imbalance.
 
 \begin{table}[pos=htbp]
 \centering
@@ -928,7 +928,7 @@ SWIFT-U5 does not achieve the highest ROC-AUC or the lowest NNS among the conven
 
 \subsubsection{Random-Split versus Forward-Temporal Evaluation}
 
-A four-arm factorial comparison was conducted across five survey-wave test cuts to examine the influence of evaluation design and survey weighting. Arm A uses random splitting without survey weighting; Arm B uses random splitting with survey weighting; Arm C uses forward-temporal splitting without survey weighting; and Arm D uses forward-temporal splitting with survey weighting.
+A four-arm factorial comparison was conducted across five survey-wave test cuts to examine the influence of evaluation design and survey weighting (Table~\ref{tab:table2_results}). Arm A uses random splitting without survey weighting; Arm B uses random splitting with survey weighting; Arm C uses forward-temporal splitting without survey weighting; and Arm D uses forward-temporal splitting with survey weighting.
 
 \begin{table}[pos=htbp]
 \centering
@@ -1103,7 +1103,7 @@ These estimates may help describe how a fixed prioritization capacity would be d
 
 \subsubsection{Subgroup Performance and Equity Implications}
 
-Subgroup performance was examined across residence, wealth quintile, and maternal education categories. Rural and urban groups have sensitivities of 23.3\% and 28.5\%, respectively. Performance also varies across wealth groups: sensitivity ranges from 18.7\% in Q3 to 27.1\% in Q1. The education subgroups show further variation, although the no-education and higher-education groups contain only 28 and 44 recorded deaths, respectively, limiting the precision of their estimates.
+Subgroup performance was examined across residence, wealth quintile, and maternal education categories (Table~\ref{tab:table7_equity}). Rural and urban groups have sensitivities of 23.3\% and 28.5\%, respectively. Performance also varies across wealth groups: sensitivity ranges from 18.7\% in Q3 to 27.1\% in Q1. The education subgroups show further variation, although the no-education and higher-education groups contain only 28 and 44 recorded deaths, respectively, limiting the precision of their estimates.
 
 \begin{table}[pos=htbp]
 \centering
