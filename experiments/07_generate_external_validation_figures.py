@@ -4,80 +4,87 @@ experiments/07_generate_external_validation_figures.py
 Generates two publication-quality figures for the external multi-country
 validation section (§5.5.5):
 
-  Fig 6  –  AUC comparison panel (Nepal + Ethiopia):
-            dot-and-CI plot across Track A, Track B, and Cross-Country transfer.
-
-  Fig 7  –  Calibration curves for cross-country transfer:
-            Nepal 2022 (zero-shot vs locally recalibrated) and
-            Ethiopia 2024-25 (zero-shot vs locally recalibrated).
-
-Outputs written to docs/figures/:
   fig6_external_auroc_comparison.png
-  fig7_external_calibration.png
+      2-panel dot-and-CI AUROC comparison across Track A, Track B, and
+      Cross-Country Transfer for Nepal DHS 2022 and Ethiopia DHS 2024-25.
 
-Data sources (already on disk, do NOT re-run validation pipeline):
-  outputs/tables/table8_external_validation.csv
-  outputs/predictions/authoritative_swift_u5_2022_predictions.parquet
-                             (for colour palette consistency only)
+  fig7_external_calibration.png
+      2x2 empirical weighted decile calibration plot comparing Zero-Shot vs.
+      Locally Recalibrated cross-country transfer (BDHS 2004-2014 -> Nepal
+      2022 and Ethiopia 2024-25), matching the binning methodology of Fig 2.
 
 Usage:
-  python experiments/07_generate_external_validation_figures.py
+  python3 experiments/07_generate_external_validation_figures.py
 """
 
 import os
 import sys
 import warnings
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
+from xgboost import XGBClassifier
 
 warnings.filterwarnings("ignore")
+os.environ.setdefault("MPLCONFIGDIR", "/tmp")
 
-# ── Paths ────────────────────────────────────────────────────────────────────
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CSV_PATH  = os.path.join(ROOT, "outputs", "tables", "table8_external_validation.csv")
-PRED_PATH = os.path.join(ROOT, "outputs", "predictions",
-                         "authoritative_swift_u5_2022_predictions.parquet")
-FIG_DIR   = os.path.join(ROOT, "docs", "figures")
-os.makedirs(FIG_DIR, exist_ok=True)
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT))
 
-# ── Colour / style palette (consistent with existing figs) ───────────────────
-NEPAL_COLOR    = "#2166AC"   # blue
-ETHIOPIA_COLOR = "#D6604D"   # orange-red
-TRACK_A_COLOR  = "#4DAF4A"   # green
-TRACK_B_COLOR  = "#FF7F00"   # orange
-XFER_COLOR_ZS  = "#984EA3"   # purple
-XFER_COLOR_LC  = "#1B9E77"   # teal
+from src.utils.config import PROCESSED_DATA_DIR
+RANDOM_STATE = 42
+from src.features.build_features import (
+    CANDIDATE_FEATURES, TARGET_COLUMN, WEIGHT_COLUMN, DIVISION_COLUMN
+)
+from src.models.baselines import compute_scale_pos_weight
+from src.models.module_c_recalib import ModuleCDriftRecalibrator
+from src.evaluation.metrics import compute_all_metrics
 
-FONT_SIZE_TITLE = 11
-FONT_SIZE_LABEL = 9
-FONT_SIZE_TICK  = 8
+# Import exact country loader & preprocessor from 06_run_external_validation
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "ext_val", ROOT / "experiments" / "06_run_external_validation.py"
+)
+ext_val = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ext_val)
+ConsistentPreprocessor = ext_val.ConsistentPreprocessor
+load_country_cohort = ext_val.load_country_cohort
+
+CSV_PATH = ROOT / "outputs" / "tables" / "table8_external_validation.csv"
+FIG_DIR = ROOT / "docs" / "figures"
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+# ── Colour / typography palette ──────────────────────────────────────────────
+NEPAL_COLOR    = "#2166AC"
+ETHIOPIA_COLOR = "#D6604D"
+TRACK_A_COLOR  = "#2E8B57"
+TRACK_A_SUB1   = "#66C2A5"
+TRACK_A_SUB2   = "#4393C3"
+TRACK_B_COLOR  = "#E66101"
+XFER_COLOR_ZS  = "#7B3294"
+XFER_COLOR_LC  = "#008837"
 
 plt.rcParams.update({
-    "font.family":    "DejaVu Sans",
-    "font.size":      FONT_SIZE_LABEL,
-    "axes.titlesize": FONT_SIZE_TITLE,
-    "axes.labelsize": FONT_SIZE_LABEL,
-    "xtick.labelsize": FONT_SIZE_TICK,
-    "ytick.labelsize": FONT_SIZE_TICK,
-    "figure.dpi":     150,
-    "savefig.dpi":    300,
-    "savefig.bbox":   "tight",
+    "font.family":     "DejaVu Sans",
+    "font.size":       9,
+    "axes.titlesize":  10.5,
+    "axes.labelsize":  9.5,
+    "xtick.labelsize": 8.5,
+    "ytick.labelsize": 8.5,
+    "figure.dpi":      150,
+    "savefig.dpi":     300,
+    "savefig.bbox":    "tight",
 })
 
-# ── Load results ─────────────────────────────────────────────────────────────
-df = pd.read_csv(CSV_PATH)
 
 def parse_ci(ci_str):
-    """Parse '[lo, hi]' string into (lo, hi) floats."""
     if not isinstance(ci_str, str):
         return np.nan, np.nan
-    ci_str = ci_str.strip("[]")
-    parts = ci_str.split(",")
+    parts = ci_str.strip("[]").split(",")
     if len(parts) != 2:
         return np.nan, np.nan
     try:
@@ -85,211 +92,274 @@ def parse_ci(ci_str):
     except ValueError:
         return np.nan, np.nan
 
-df["CI_lo"], df["CI_hi"] = zip(*df["AUROC_95CI"].map(parse_ci))
-
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FIG 6 – External AUC comparison (dot-and-CI, two panels side by side)
+# 1. AUROC Comparison Panel (fig6_external_auroc_comparison.png)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _build_fig6_data(country):
-    rows = df[df["Country"] == country].copy()
+def _build_fig6_data(df, country):
+    rows = df[df["Country"] == country]
 
-    # --- Track A: SWIFT-U5 Full and XGBoost baseline ---
-    track_a_full = rows[
-        (rows["Evaluation"].str.startswith("Track A")) &
-        (rows["Model"] == "SWIFT-U5 (Full)")
-    ].iloc[0]
-    track_a_xgb = rows[
-        (rows["Evaluation"].str.startswith("Track A")) &
-        (rows["Model"] == "Weighted XGBoost")
-    ].iloc[0]
-    track_a_wof = rows[
-        (rows["Evaluation"].str.startswith("Track A")) &
-        (rows["Model"] == "SWIFT-U5 w/o Module A")
-    ].iloc[0]
+    def pick(ev_prefix, model_exact):
+        sub = rows[rows["Evaluation"].str.startswith(ev_prefix) & (rows["Model"] == model_exact)]
+        return sub.iloc[0]
 
-    # --- Track B: Random XGBoost ---
-    track_b = rows[rows["Evaluation"].str.startswith("Track B")].iloc[0]
-
-    # --- Cross-country ---
-    xfer_zs = rows[
-        (rows["Evaluation"].str.startswith("Cross-Country")) &
-        (rows["Model"].str.contains("Zero-Shot"))
-    ].iloc[0]
-    xfer_lc = rows[
-        (rows["Evaluation"].str.startswith("Cross-Country")) &
-        (rows["Model"].str.contains("Local Calib"))
-    ].iloc[0]
+    ta_full = pick("Track A", "SWIFT-U5 (Full)")
+    ta_noa  = pick("Track A", "SWIFT-U5 w/o Module A")
+    ta_xgb  = pick("Track A", "Weighted XGBoost")
+    tb_xgb  = pick("Track B", "Weighted XGBoost (Random)")
+    tr_zs   = pick("Cross-Country", "BDHS Transfer (Zero-Shot)")
+    tr_lc   = pick("Cross-Country", "BDHS Transfer + Local Calib")
 
     return [
-        # label,                   auc,                  lo,                   hi,                  color,         marker, zorder
-        ("SWIFT-U5 (Full)\n[Track A]",    track_a_full["AUROC_W"], track_a_full["CI_lo"], track_a_full["CI_hi"], TRACK_A_COLOR,  "o", 4),
-        ("w/o Module A\n[Track A]",       track_a_wof["AUROC_W"],  track_a_wof["CI_lo"],  track_a_wof["CI_hi"],  "#78C679",     "s", 4),
-        ("XGBoost Baseline\n[Track A]",   track_a_xgb["AUROC_W"],  track_a_xgb["CI_lo"],  track_a_xgb["CI_hi"],  "#6BAED6",     "^", 4),
-        ("XGBoost (Random)\n[Track B]",   track_b["AUROC_W"],       track_b["CI_lo"],       track_b["CI_hi"],       TRACK_B_COLOR, "D", 4),
-        ("BDHS Transfer\n(Zero-Shot)",     xfer_zs["AUROC_W"],       xfer_zs["CI_lo"],       xfer_zs["CI_hi"],       XFER_COLOR_ZS, "P", 5),
-        ("BDHS Transfer\n(Local Calib)",   xfer_lc["AUROC_W"],       xfer_lc["CI_lo"],       xfer_lc["CI_hi"],       XFER_COLOR_LC, "*", 5),
+        ("SWIFT-U5 (Full)\n[Track A]",     ta_full["AUROC_W"], ta_full["CI_lo"], ta_full["CI_hi"], TRACK_A_COLOR, "o"),
+        ("SWIFT-U5 w/o Mod. A\n[Track A]", ta_noa["AUROC_W"],  ta_noa["CI_lo"],  ta_noa["CI_hi"],  TRACK_A_SUB1,  "s"),
+        ("XGBoost Baseline\n[Track A]",    ta_xgb["AUROC_W"],  ta_xgb["CI_lo"],  ta_xgb["CI_hi"],  TRACK_A_SUB2,  "^"),
+        ("XGBoost (Random)\n[Track B]",    tb_xgb["AUROC_W"],  tb_xgb["CI_lo"],  tb_xgb["CI_hi"],  TRACK_B_COLOR, "D"),
+        ("BDHS Transfer\n(Zero-Shot)",     tr_zs["AUROC_W"],   tr_zs["CI_lo"],   tr_zs["CI_hi"],   XFER_COLOR_ZS, "P"),
+        ("BDHS Transfer\n(Local Calib)",   tr_lc["AUROC_W"],   tr_lc["CI_lo"],   tr_lc["CI_hi"],   XFER_COLOR_LC, "*"),
     ]
 
 
-def make_fig6():
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharey=False)
+def make_fig6(df):
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 5.2), sharey=False)
+    panel_titles = [
+        ("Nepal",    "(a) Nepal DHS 2022 (Locked)"),
+        ("Ethiopia", "(b) Ethiopia DHS 2024–25 (Locked)"),
+    ]
 
-    for ax, country, color in zip(axes, ["Nepal", "Ethiopia"],
-                                  [NEPAL_COLOR, ETHIOPIA_COLOR]):
-        data = _build_fig6_data(country)
-        y_pos = list(range(len(data)))[::-1]   # top-to-bottom
+    for ax, (country, title) in zip(axes, panel_titles):
+        data = _build_fig6_data(df, country)
+        y_pos = list(range(len(data)))[::-1]
 
-        for i, (label, auc, lo, hi, col, mkr, zo) in enumerate(data):
+        # Subtle horizontal group separators (Track A | Track B | Cross-Country)
+        ax.axhline(2.5, ls="-", lw=0.7, color="#CCCCCC", zorder=1)
+        ax.axhline(1.5, ls="-", lw=0.7, color="#CCCCCC", zorder=1)
+
+        for i, (label, auc, lo, hi, col, mkr) in enumerate(data):
             yp = y_pos[i]
             err_lo = auc - lo if not np.isnan(lo) else 0
             err_hi = hi - auc if not np.isnan(hi) else 0
-            ax.errorbar(auc, yp, xerr=[[err_lo], [err_hi]],
-                        fmt=mkr, color=col, markersize=9,
-                        ecolor=col, elinewidth=1.5, capsize=4,
-                        zorder=zo, label=label)
-            ax.text(auc, yp - 0.35, f"{auc:.3f}", ha="center",
-                    va="top", fontsize=7, color=col)
+            msize = 10.5 if mkr == "*" else 8
+            ax.errorbar(
+                auc, yp, xerr=[[err_lo], [err_hi]],
+                fmt=mkr, color=col, markersize=msize,
+                ecolor=col, elinewidth=1.6, capsize=4, zorder=4
+            )
+            # Place text cleanly ABOVE marker so bottom label never collides with x-axis
+            ax.text(
+                auc, yp + 0.18, f"{auc:.3f} [{lo:.3f}, {hi:.3f}]",
+                ha="center", va="bottom", fontsize=7.2, color="#222222",
+                fontweight="medium"
+            )
 
-        # ─ Reference lines ─
-        ax.axvline(0.5, ls="--", lw=0.8, color="grey", alpha=0.6, label="Chance (0.5)")
-
+        ax.axvline(0.5, ls="--", lw=0.9, color="grey", alpha=0.65)
         ax.set_yticks(y_pos)
-        ax.set_yticklabels([d[0] for d in data], fontsize=8)
-        ax.set_xlabel("Survey-Weighted ROC-AUC (95% CI)", fontsize=FONT_SIZE_LABEL)
-        ax.set_xlim(0.45, 0.80)
-        ax.set_title(f"({chr(96 + list(['Nepal','Ethiopia']).index(country) + 1)}) {country}", fontsize=FONT_SIZE_TITLE, fontweight="bold")
+        ax.set_yticklabels([d[0] for d in data], fontsize=8.2)
+        ax.set_ylim(-0.55, len(data) - 0.25)
+        ax.set_xlim(0.47, 0.79)
+        ax.set_xlabel("Survey-Weighted ROC-AUC (95% CI)")
+        ax.set_title(title, fontweight="bold", pad=8)
         ax.grid(axis="x", ls=":", alpha=0.5)
         ax.spines[["top", "right"]].set_visible(False)
 
-    # Shared legend
     legend_handles = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor=TRACK_A_COLOR,
-               markersize=9, label="SWIFT-U5 Full [Track A]"),
-        Line2D([0], [0], marker="s", color="w", markerfacecolor="#78C679",
-               markersize=9, label="SWIFT-U5 w/o Module A [Track A]"),
-        Line2D([0], [0], marker="^", color="w", markerfacecolor="#6BAED6",
-               markersize=9, label="XGBoost Baseline [Track A]"),
-        Line2D([0], [0], marker="D", color="w", markerfacecolor=TRACK_B_COLOR,
-               markersize=9, label="XGBoost – Random Split [Track B]"),
-        Line2D([0], [0], marker="P", color="w", markerfacecolor=XFER_COLOR_ZS,
-               markersize=9, label="BDHS Transfer – Zero-Shot"),
-        Line2D([0], [0], marker="*", color="w", markerfacecolor=XFER_COLOR_LC,
-               markersize=11, label="BDHS Transfer – Local Recalibration"),
-        Line2D([0], [0], ls="--", color="grey", label="Chance (0.5)"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=TRACK_A_COLOR, markersize=8.5, label="SWIFT-U5 Full [Track A]"),
+        Line2D([0], [0], marker="s", color="w", markerfacecolor=TRACK_A_SUB1,  markersize=8.5, label="SWIFT-U5 w/o Module A [Track A]"),
+        Line2D([0], [0], marker="^", color="w", markerfacecolor=TRACK_A_SUB2,  markersize=8.5, label="XGBoost Baseline [Track A]"),
+        Line2D([0], [0], marker="D", color="w", markerfacecolor=TRACK_B_COLOR, markersize=8.5, label="XGBoost – Random Split [Track B]"),
+        Line2D([0], [0], marker="P", color="w", markerfacecolor=XFER_COLOR_ZS, markersize=8.5, label="BDHS Transfer – Zero-Shot"),
+        Line2D([0], [0], marker="*", color="w", markerfacecolor=XFER_COLOR_LC, markersize=10.5, label="BDHS Transfer – Local Recalibration"),
+        Line2D([0], [0], ls="--", color="grey", label="Chance (0.50)"),
     ]
-    fig.legend(handles=legend_handles, loc="lower center", ncol=4,
-               fontsize=7.5, frameon=False, bbox_to_anchor=(0.5, -0.08))
-    fig.suptitle(
-        "Fig 6. External Multi-Country Validation: ROC-AUC by Evaluation Design\n"
-        "Nepal DHS 2022 (locked) and Ethiopia DHS 2024–25 (locked)",
-        fontsize=FONT_SIZE_TITLE, y=1.01
+    fig.legend(
+        handles=legend_handles, loc="lower center", ncol=4,
+        fontsize=7.8, frameon=False, bbox_to_anchor=(0.5, -0.06)
     )
-    out = os.path.join(FIG_DIR, "fig6_external_auroc_comparison.png")
+    fig.suptitle(
+        "External Multi-Country Validation: Survey-Weighted ROC-AUC by Evaluation Design",
+        fontsize=11.5, fontweight="bold", y=1.01
+    )
+    plt.tight_layout()
+    out = FIG_DIR / "fig6_external_auroc_comparison.png"
     fig.savefig(out)
     plt.close(fig)
     print(f"Saved: {out}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# FIG 7 – Cross-country transfer calibration curves (2×2 panel)
+# 2. Empirical Cross-Country Calibration Curves (fig7_external_calibration.png)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def make_fig7():
+def compute_cross_country_predictions(table8_df):
     """
-    Draws 4-panel calibration figure using stored slope/intercept values to
-    reconstruct logistic calibration curves (Platt model on logit scale).
-    Shows the before/after recalibration contrast for each country.
-
-    The calibration curve is modelled as:
-        p_cal = sigmoid(slope * logit(p_raw) + intercept)
-    where p_raw is the raw model score.  We show the population mean predicted
-    probability as a single reference dot, the calibration line, and the
-    perfect calibration diagonal.
+    Reproduce deterministic cross-country transfer probability vectors
+    (BDHS 2004-2014 -> Nepal 2022 & Ethiopia 2024-25) and assert exact agreement
+    with locked table8_external_validation.csv metrics.
     """
-    # Cross-country rows
-    xfer = df[df["Evaluation"].str.startswith("Cross-Country")].copy()
+    df_nepal = load_country_cohort("nepal", ["2006", "2011", "2016", "2022"])
+    df_ethiopia = load_country_cohort("ethiopia", ["2005", "2011", "2016", "2019", "2024-25"])
 
+    df_bd = pd.read_parquet(PROCESSED_DATA_DIR / "u5m_harmonized_cohort.parquet")
+    df_bd_dev = df_bd[df_bd["round"].isin(["2004", "2007", "2011", "2014"])].copy().reset_index(drop=True)
+    df_bd_val = df_bd[df_bd["round"] == "2017-18"].copy().reset_index(drop=True)
+
+    df_bd_dev_nd = df_bd_dev.drop(columns=[DIVISION_COLUMN])
+    df_bd_val_nd = df_bd_val.drop(columns=[DIVISION_COLUMN])
+
+    prep = ConsistentPreprocessor(include_missing_flags=True)
+    X_dev, _ = prep.fit_transform(df_bd_dev_nd, CANDIDATE_FEATURES)
+    X_bd_val, _ = prep.transform(df_bd_val_nd, CANDIDATE_FEATURES)
+
+    y_dev = df_bd_dev[TARGET_COLUMN].values.astype(int)
+    w_dev = df_bd_dev[WEIGHT_COLUMN].values.astype(float)
+    w_dev_norm = w_dev / w_dev.mean()
+    spw = compute_scale_pos_weight(y_dev, w_dev_norm)
+
+    clf = XGBClassifier(
+        n_estimators=150, max_depth=4, learning_rate=0.05,
+        subsample=0.8, colsample_bytree=0.8, scale_pos_weight=spw,
+        eval_metric="logloss", random_state=RANDOM_STATE, verbosity=0, n_jobs=-1
+    )
+    clf.fit(X_dev, y_dev, sample_weight=w_dev_norm)
+
+    p_bd_val_raw = clf.predict_proba(X_bd_val)[:, 1]
+    w_bd_val = df_bd_val[WEIGHT_COLUMN].values.astype(float)
+    w_bd_val = w_bd_val / w_bd_val.mean()
+    mod_c_bd = ModuleCDriftRecalibrator(use_temporal_recalibration=True)
+    mod_c_bd.fit_recalibration(
+        df_bd_val[TARGET_COLUMN].values.astype(int),
+        p_bd_val_raw, w_bd_val, round_label="2017-18"
+    )
+
+    outputs = {}
+    targets = [
+        ("Nepal", df_nepal, "2016", "2022"),
+        ("Ethiopia", df_ethiopia, "2019", "2024-25"),
+    ]
+    for cname, df_c, val_rnd, test_rnd in targets:
+        df_c_val = df_c[df_c["round"] == val_rnd].drop(columns=[DIVISION_COLUMN]).reset_index(drop=True)
+        df_c_test = df_c[df_c["round"] == test_rnd].copy().reset_index(drop=True)
+        df_c_test_nd = df_c_test.drop(columns=[DIVISION_COLUMN])
+
+        X_c_val, _ = prep.transform(df_c_val, CANDIDATE_FEATURES)
+        X_c_test, _ = prep.transform(df_c_test_nd, CANDIDATE_FEATURES)
+
+        p_raw_val = clf.predict_proba(X_c_val)[:, 1]
+        p_raw_test = clf.predict_proba(X_c_test)[:, 1]
+
+        p_zero = mod_c_bd.predict_proba(p_raw_test)
+
+        mod_c_loc = ModuleCDriftRecalibrator(use_temporal_recalibration=True)
+        w_c_val = df_c_val[WEIGHT_COLUMN].values.astype(float)
+        w_c_val = w_c_val / w_c_val.mean()
+        mod_c_loc.fit_recalibration(
+            df_c_val[TARGET_COLUMN].values.astype(int),
+            p_raw_val, w_c_val, round_label=val_rnd
+        )
+        p_loc = mod_c_loc.predict_proba(p_raw_test)
+
+        y_test = df_c_test[TARGET_COLUMN].values.astype(int)
+        w_test = df_c_test[WEIGHT_COLUMN].values.astype(float)
+
+        for variant_key, model_label, p_vec in [
+            ("Zero-Shot",   "BDHS Transfer (Zero-Shot)",   p_zero),
+            ("Local Calib", "BDHS Transfer + Local Calib", p_loc),
+        ]:
+            m = compute_all_metrics(
+                y_test, p_vec, sample_weight=w_test,
+                compute_unweighted=False, compute_calibration=True
+            )
+            ref = table8_df[
+                (table8_df["Country"] == cname) &
+                (table8_df["Model"] == model_label)
+            ].iloc[0]
+            assert abs(round(m["auroc_w"], 3) - ref["AUROC_W"]) < 1e-6, f"AUROC mismatch {cname} {variant_key}"
+            assert abs(round(m["cal_slope_w"], 3) - ref["Cal_Slope"]) < 1e-6, f"Slope mismatch {cname} {variant_key}"
+            assert abs(round(m["brier_w"], 4) - ref["Brier_W"]) < 1e-6, f"Brier mismatch {cname} {variant_key}"
+            outputs[(cname, variant_key)] = {
+                "y_test": y_test,
+                "w_test": w_test,
+                "p_pred": p_vec,
+                "metrics": m,
+            }
+            print(f"  Verified {cname} {variant_key}: AUC={m['auroc_w']:.3f}, Slope={m['cal_slope_w']:.3f}, Int={m['cal_intercept_w']:.3f}, Brier={m['brier_w']:.4f}")
+
+    return outputs
+
+
+def make_fig7(pred_dict):
     configs = [
-        ("Nepal",    "Zero-Shot",   "BDHS Transfer (Zero-Shot)",   "(a) Nepal 2022 — Zero-Shot"),
-        ("Nepal",    "Local Calib", "BDHS Transfer + Local Calib", "(b) Nepal 2022 — Local Recalibration"),
-        ("Ethiopia", "Zero-Shot",   "BDHS Transfer (Zero-Shot)",   "(c) Ethiopia 2024–25 — Zero-Shot"),
-        ("Ethiopia", "Local Calib", "BDHS Transfer + Local Calib", "(d) Ethiopia 2024–25 — Local Recalibration"),
+        ("Nepal",    "Zero-Shot",   "(a) Nepal 2022 – Zero-Shot Transfer",          NEPAL_COLOR,    0.11),
+        ("Nepal",    "Local Calib", "(b) Nepal 2022 – Local Recalibration (Mod. C)", NEPAL_COLOR,    0.11),
+        ("Ethiopia", "Zero-Shot",   "(c) Ethiopia 2024–25 – Zero-Shot Transfer",     ETHIOPIA_COLOR, 0.14),
+        ("Ethiopia", "Local Calib", "(d) Ethiopia 2024–25 – Local Recalibration (Mod. C)", ETHIOPIA_COLOR, 0.14),
     ]
 
-    fig, axes = plt.subplots(2, 2, figsize=(9, 8))
+    fig, axes = plt.subplots(2, 2, figsize=(9.5, 8.2))
     axes = axes.flatten()
 
-    # Colour for country
-    ctry_color = {"Nepal": NEPAL_COLOR, "Ethiopia": ETHIOPIA_COLOR}
+    for ax, (country, variant, title, col, axis_max) in zip(axes, configs):
+        d = pred_dict[(country, variant)]
+        y_t = d["y_test"]
+        w_t = d["w_test"]
+        p_t = d["p_pred"]
+        m = d["metrics"]
 
-    for ax, (country, variant, model_name, title) in zip(axes, configs):
-        row = xfer[(xfer["Country"] == country) & (xfer["Model"] == model_name)]
-        if row.empty:
-            ax.set_title(title)
-            ax.text(0.5, 0.5, "No data", ha="center", va="center")
-            continue
-        row = row.iloc[0]
+        # Empirical 10-quantile survey-weighted calibration curve (identical to Fig 2)
+        n_bins = 10
+        order = np.argsort(p_t)
+        y_s, p_s, w_s = y_t[order], p_t[order], w_t[order]
+        bins = np.array_split(np.arange(len(y_s)), n_bins)
+        mean_pred = np.array([np.average(p_s[b], weights=w_s[b]) for b in bins if len(b) > 0])
+        mean_obs  = np.array([np.average(y_s[b], weights=w_s[b]) for b in bins if len(b) > 0])
 
-        slope     = row["Cal_Slope"]
-        intercept = row["Cal_Intercept"]
-        prev_w    = row["Prev_W_Pct"] / 100.0   # weighted prevalence
-        auroc     = row["AUROC_W"]
-        brier     = row["Brier_W"]
+        hi_lim = max(axis_max, float(mean_pred.max()) * 1.12, float(mean_obs.max()) * 1.12)
 
-        col = ctry_color[country]
+        ax.plot([0, hi_lim], [0, hi_lim], "k--", lw=1.3, label="Perfect calibration")
+        ax.scatter(mean_pred, mean_obs, color=col, s=55, zorder=5, edgecolor="white", linewidth=0.6)
+        ax.plot(mean_pred, mean_obs, color=col, lw=2.0, label=f"{country} ({variant})")
 
-        # ─ Perfect calibration diagonal ─
-        p_range = np.linspace(0.001, 0.25, 300)
-        ax.plot(p_range, p_range, "--", color="gray", lw=1, label="Perfect calibration")
-
-        # ─ Calibration line from slope/intercept (logit space) ─
-        logit_p = np.log(p_range / (1 - p_range))
-        logit_cal = slope * logit_p + intercept
-        p_cal = 1 / (1 + np.exp(-logit_cal))
-        ax.plot(p_range, p_cal, "-", color=col, lw=2,
-                label=f"Calibration line\n(slope={slope:.3f}, int={intercept:.3f})")
-
-        # ─ Mean predicted probability dot ─
-        ax.scatter([prev_w], [prev_w], s=80, zorder=5, color=col,
-                   marker="o", label=f"Weighted prevalence ({prev_w:.3f})")
-
-        # ─ Null reference ─
-        ax.axhline(prev_w, ls=":", lw=0.8, color="gray", alpha=0.5)
-        ax.axvline(prev_w, ls=":", lw=0.8, color="gray", alpha=0.5)
-
-        ax.set_xlim(0, 0.25)
-        ax.set_ylim(0, 0.25)
-        ax.set_xlabel("Mean Predicted Probability", fontsize=FONT_SIZE_LABEL)
-        ax.set_ylabel("Observed Event Rate", fontsize=FONT_SIZE_LABEL)
-        ax.set_title(title, fontsize=FONT_SIZE_TITLE, fontweight="bold")
-        ax.legend(fontsize=7, loc="upper left", frameon=False)
+        ax.set_xlim(0, hi_lim)
+        ax.set_ylim(0, hi_lim)
+        ax.set_xlabel("Mean Predicted Probability")
+        ax.set_ylabel("Observed Event Fraction")
+        ax.set_title(
+            f"{title}\nSlope={m['cal_slope_w']:.3f}, Int={m['cal_intercept_w']:.3f}, Brier={m['brier_w']:.4f}",
+            fontsize=9.5, fontweight="bold", pad=6
+        )
+        ax.legend(fontsize=8, loc="upper left", frameon=True, framealpha=0.85)
+        ax.grid(True, ls=":", alpha=0.45)
         ax.spines[["top", "right"]].set_visible(False)
-        ax.grid(ls=":", alpha=0.4)
 
-        # ─ Annotation ─
-        textstr = f"AUC = {auroc:.3f}\nBrier = {brier:.4f}"
-        ax.text(0.97, 0.05, textstr, transform=ax.transAxes,
-                fontsize=7.5, ha="right", va="bottom",
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7))
+        ax.text(
+            0.96, 0.06,
+            f"ROC-AUC = {m['auroc_w']:.3f}\nNull Brier = {m['brier_null_w']:.4f}",
+            transform=ax.transAxes, fontsize=7.8, ha="right", va="bottom",
+            bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor="#DDDDDD", alpha=0.9)
+        )
 
     fig.suptitle(
-        "Fig 7. Cross-Country Transfer Calibration: Bangladesh→Nepal and Bangladesh→Ethiopia\n"
-        "Comparison of zero-shot and locally recalibrated BDHS 2004–2014 model",
-        fontsize=FONT_SIZE_TITLE, y=1.01
+        "Cross-Country Transfer Calibration Curves (BDHS 2004–2014 Model; 10 Weighted Quantiles)",
+        fontsize=11.5, fontweight="bold", y=1.01
     )
-    fig.tight_layout()
-    out = os.path.join(FIG_DIR, "fig7_external_calibration.png")
+    plt.tight_layout()
+    out = FIG_DIR / "fig7_external_calibration.png"
     fig.savefig(out)
     plt.close(fig)
     print(f"Saved: {out}")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("Generating Fig 6: External AUC comparison …")
-    make_fig6()
-    print("Generating Fig 7: External calibration curves …")
-    make_fig7()
+    table8_df = pd.read_csv(CSV_PATH)
+    table8_df["CI_lo"], table8_df["CI_hi"] = zip(*table8_df["AUROC_95CI"].map(parse_ci))
+
+    print("Generating Fig 6: External AUROC comparison...")
+    make_fig6(table8_df)
+
+    print("Computing exact cross-country decile calibration data...")
+    pred_dict = compute_cross_country_predictions(table8_df)
+
+    print("Generating Fig 7: Empirical external calibration curves...")
+    make_fig7(pred_dict)
     print("Done.")
