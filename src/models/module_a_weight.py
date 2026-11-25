@@ -34,12 +34,20 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
 ROUND_YEARS = {
+    # Bangladesh DHS
     '2004': 2004.0,
     '2007': 2007.0,
     '2011': 2011.0,
     '2014': 2014.0,
     '2017-18': 2017.5,
-    '2022': 2022.0
+    '2022': 2022.0,
+    # Nepal DHS
+    '2006': 2006.0,
+    '2016': 2016.0,
+    # Ethiopia DHS
+    '2005': 2005.0,
+    '2019': 2019.0,
+    '2024-25': 2024.5,
 }
 
 

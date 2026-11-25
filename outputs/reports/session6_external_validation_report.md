@@ -1,0 +1,36 @@
+# Session 6 External Multi-Country Validation Report
+
+## 1. Cohort Summary
+```
+ Country   Round  Sample_N  Deaths_n  Weighted_U5MR_per1000  Num_Regions  Num_PSU
+   Nepal    2006      5783       326                   52.8            5      260
+   Nepal    2011      5306       252                   46.7            5      289
+   Nepal    2016      4994       174                   34.1            5      383
+   Nepal    2022      5326       165                   29.2            5      475
+Ethiopia    2005      9861       859                   94.4           11      535
+Ethiopia    2011     11654       846                   69.9           11      596
+Ethiopia    2016     10571       632                   54.9           11      643
+Ethiopia    2019      5719       338                   49.7           11      305
+Ethiopia 2024-25     13460       637                   44.1           11      797
+```
+
+## 2. External Validation Results
+```
+ Country             Evaluation                       Model  N_Test  Deaths_Test  Prev_W_Pct  AUROC_W     AUROC_95CI  AUPRC_W  Brier_W  Brier_Null_W    BSS_W  Cal_Slope  Cal_Intercept  Sens_10pct Sens_10pct_CI  NNS_10pct NNS_10pct_CI  Yield_1k_10pct  Yield_Mult
+   Nepal     Track A (Temporal)             SWIFT-U5 (Full)    5326          165        2.92    0.611 [0.564, 0.657]    0.041   0.0340        0.0284  -0.1985      0.292         -2.599        13.1   [8.1, 18.4]       23.7 [16.4, 40.1]            42.2        1.44
+   Nepal     Track A (Temporal)       SWIFT-U5 w/o Module A    5326          165        2.92    0.634 [0.582, 0.685]    0.046   0.0301        0.0284  -0.0613      0.515         -1.966        15.2   [9.6, 21.7]       17.7 [12.1, 28.9]            56.4        1.93
+   Nepal     Track A (Temporal)            Weighted XGBoost    5326          165        2.92    0.643 [0.591, 0.694]    0.048   0.2483        0.0284  -7.7585      0.502         -3.496        17.0  [11.0, 23.8]       15.9 [11.3, 24.8]            62.7        2.15
+   Nepal     Track A (Temporal)           Weighted Logistic    5326          165        2.92    0.632 [0.580, 0.684]    0.047   0.3792        0.0284 -12.3739      0.290         -3.695        17.5  [11.6, 23.3]       18.1 [13.2, 27.9]            55.4        1.90
+   Nepal     Track A (Temporal)      Weighted Random Forest    5326          165        2.92    0.669 [0.615, 0.719]    0.060   0.1636        0.0284  -4.7688      0.666         -3.195        22.2  [15.2, 30.4]       14.1  [9.9, 21.4]            71.1        2.44
+   Nepal Track B (Random 70/30)   Weighted XGBoost (Random)    6423          275        4.17    0.714 [0.680, 0.747]    0.117   0.1731        0.0399  -3.3345      0.850         -2.902        29.4  [24.6, 34.8]        7.9   [6.4, 9.9]           127.0        3.05
+Ethiopia     Track A (Temporal)             SWIFT-U5 (Full)   13460          637        4.41    0.587 [0.550, 0.621]    0.058   0.0424        0.0421  -0.0063      0.556         -1.467        15.8  [10.8, 21.0]       18.2 [13.6, 27.3]            54.8        1.24
+Ethiopia     Track A (Temporal)       SWIFT-U5 w/o Module A   13460          637        4.41    0.601 [0.559, 0.638]    0.062   0.0425        0.0421  -0.0090      0.507         -1.599        23.6  [17.6, 29.6]       15.9 [11.6, 23.0]            63.0        1.43
+Ethiopia     Track A (Temporal)            Weighted XGBoost   13460          637        4.41    0.601 [0.562, 0.635]    0.062   0.3804        0.0421  -8.0294      0.199         -3.192        16.2  [10.9, 20.9]       13.2  [9.6, 20.7]            75.6        1.72
+Ethiopia     Track A (Temporal)           Weighted Logistic   13460          637        4.41    0.604 [0.568, 0.636]    0.064   0.4006        0.0421  -8.5092      0.211         -3.231        17.2  [12.7, 23.3]       12.1  [9.0, 16.6]            82.6        1.88
+Ethiopia     Track A (Temporal)      Weighted Random Forest   13460          637        4.41    0.595 [0.559, 0.629]    0.062   0.2871        0.0421  -5.8149      0.279         -3.090        12.6   [8.5, 16.5]       13.7  [9.9, 21.0]            72.9        1.65
+Ethiopia Track B (Random 70/30)   Weighted XGBoost (Random)   15380          994        6.55    0.689 [0.662, 0.715]    0.157   0.2015        0.0612  -2.2925      0.971         -2.540        27.8  [24.3, 30.9]        5.0   [4.4, 5.7]           200.8        3.07
+   Nepal Cross-Country Transfer   BDHS Transfer (Zero-Shot)    5326          165        2.92    0.706 [0.654, 0.753]    0.082   0.0281        0.0284   0.0086      1.002         -0.393        29.5            --       11.4  [8.3, 16.0]            87.7        3.00
+   Nepal Cross-Country Transfer BDHS Transfer + Local Calib    5326          165        2.92    0.706 [0.654, 0.753]    0.082   0.0278        0.0284   0.0196      1.245          0.805        29.5            --       11.4  [8.3, 16.0]            87.7        3.00
+Ethiopia Cross-Country Transfer   BDHS Transfer (Zero-Shot)   13460          637        4.41    0.636 [0.597, 0.673]    0.093   0.0419        0.0421   0.0060      0.709         -0.975        23.6            --        8.4  [6.6, 11.0]           118.4        2.69
+Ethiopia Cross-Country Transfer BDHS Transfer + Local Calib   13460          637        4.41    0.636 [0.597, 0.673]    0.093   0.0415        0.0421   0.0152      0.985          0.150        23.6            --        8.4  [6.6, 11.0]           118.4        2.69
+```
